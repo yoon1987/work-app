@@ -796,6 +796,14 @@ function App() {
       setLoading(false);
     }
     fetchAll();
+    // 10초마다 자동 새로고침 (실시간 동기화)
+    const timer = setInterval(async () => {
+      const [att, lev, evt] = await Promise.all([
+        dbLoad("attendance"), dbLoad("leaves"), dbLoad("company_events"),
+      ]);
+      setAttendance(att); setLeaves(lev); setCompanyEvents(evt);
+    }, 10000);
+    return () => clearInterval(timer);
   }, []);
 
   const login = (u) => { setUser(u); saveState("currentUser", u); };
