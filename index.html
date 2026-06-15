@@ -792,24 +792,30 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
                   </div>
                   {!emp.unlimited && (
                     <div style={{marginTop:12}}>
-                      <div style={{fontSize:12,color:C.sub,marginBottom:6}}>총 휴가 일수</div>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{fontSize:12,color:C.sub,marginBottom:6}}>총 휴가 일수 (0.5일 단위)</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <button onClick={() => {
-                          const next = employees.map(e => e.id===emp.id ? {...e, totalLeave: Math.max(0, e.totalLeave-1)} : e);
+                          const next = employees.map(e => e.id===emp.id ? {...e, totalLeave: Math.max(0, Math.round((e.totalLeave-0.5)*10)/10)} : e);
                           setEmployees(next); saveState("employees", next);
-                        }} style={{...btn(C.bg,C.text),width:36,height:36,padding:0,fontSize:18,border:`1px solid ${C.border}`}}>−</button>
-                        <input type="number" value={emp.totalLeave}
+                          showToast("저장됐어요!");
+                        }} style={{width:40,height:40,borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:C.text}}>−</button>
+                        <input type="number" value={emp.totalLeave} step="0.5" min="0"
                           onChange={e => {
-                            const v = parseInt(e.target.value)||0;
-                            const next = employees.map(em => em.id===emp.id ? {...em, totalLeave:v} : em);
+                            const v = parseFloat(e.target.value)||0;
+                            const next = employees.map(em => em.id===emp.id ? {...em, totalLeave: Math.round(v*2)/2} : em);
                             setEmployees(next); saveState("employees", next);
                           }}
-                          style={{width:60,textAlign:"center",padding:"8px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:16,fontWeight:700}} />
+                          onBlur={() => showToast("저장됐어요!")}
+                          style={{width:70,textAlign:"center",padding:"8px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:16,fontWeight:700,outline:"none"}} />
                         <button onClick={() => {
-                          const next = employees.map(e => e.id===emp.id ? {...e, totalLeave: e.totalLeave+1} : e);
+                          const next = employees.map(e => e.id===emp.id ? {...e, totalLeave: Math.round((e.totalLeave+0.5)*10)/10} : e);
                           setEmployees(next); saveState("employees", next);
-                        }} style={{...btn(C.primary),width:36,height:36,padding:0,fontSize:18}}>+</button>
+                          showToast("저장됐어요!");
+                        }} style={{width:40,height:40,borderRadius:10,border:"none",background:C.primary,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"#fff"}}>+</button>
                         <span style={{fontSize:13,color:C.sub}}>일</span>
+                      </div>
+                      <div style={{fontSize:12,color:C.sub,marginTop:6}}>
+                        잔여: <strong style={{color:C.green}}>{Math.max(0, emp.totalLeave - calcUsedLeave(leaves, emp.id))}일</strong>
                       </div>
                     </div>
                   )}
