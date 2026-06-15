@@ -3,11 +3,17 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title> Team DYNA </title>
+<title>DYNA team</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="DYNA team"/>
+<meta name="theme-color" content="#8b7355"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23fdfaf5'/%3E%3Ctext x='90' y='82' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eurvs%3C/text%3E%3Ctext x='90' y='130' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eeveri%3C/text%3E%3C/svg%3E"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23fdfaf5'/%3E%3Ctext x='90' y='82' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eurvs%3C/text%3E%3Ctext x='90' y='130' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eeveri%3C/text%3E%3C/svg%3E"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6fa;}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:system-ui,-apple-system,sans-serif;background:#f5f0e8;}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -47,10 +53,10 @@ function calcUsedLeave(leaves, empId) {
 }
 
 const C = {
-  bg:"#f5f6fa", card:"#ffffff", primary:"#3b5bdb", primaryLight:"#e7edff",
-  accent:"#f76707", green:"#2f9e44", greenLight:"#ebfbee",
-  red:"#e03131", redLight:"#fff5f5", yellow:"#f59f00", yellowLight:"#fff9db",
-  text:"#212529", sub:"#868e96", border:"#dee2e6",
+  bg:"#f5f0e8", card:"#fdfaf5", primary:"#8b7355", primaryLight:"#f0e8d8",
+  accent:"#c4956a", green:"#6b8f71", greenLight:"#e8f0e9",
+  red:"#b85c5c", redLight:"#fdf0f0", yellow:"#c4a45a", yellowLight:"#fdf6e3",
+  text:"#3d3028", sub:"#9e8e7e", border:"#e8ddd0",
 };
 
 const btn = (bg, color="#fff", extra={}) => ({
@@ -80,7 +86,7 @@ function LoginScreen({ employees, onLogin }) {
       <div style={{width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{fontSize:40,marginBottom:8}}>🏢</div>
-          <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.text}}>우리 팀 근무앱</h1>
+          <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.text}}>DYNA team</h1>
           <p style={{margin:"6px 0 0",color:C.sub,fontSize:14}}>출퇴근 · 휴가 관리</p>
         </div>
         <div style={{background:C.card,borderRadius:16,padding:24,boxShadow:"0 2px 16px #0001"}}>
@@ -456,7 +462,7 @@ function AdminScreen({ employees, attendance, leaves, setLeaves, companyEvents, 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
       <Toast msg={toast} />
-      <div style={{background:"#1a1a2e",padding:"20px 20px 16px",color:"#fff"}}>
+      <div style={{background:"#5c4a35",padding:"20px 20px 16px",color:"#fff"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:12,opacity:0.7}}>관리자 모드 👑</div>
