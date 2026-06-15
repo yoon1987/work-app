@@ -36,6 +36,55 @@ const EVENT_COLORS = ["#3b5bdb","#f76707","#2f9e44","#e03131","#7c3aed","#0ca678
 const EVENT_TYPES = ["팝업", "워크샵", "할인행사", "회의", "기타"];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+// 2026~2027년 한국 공휴일 (대체공휴일 포함)
+const HOLIDAYS = new Set([
+  // 2026년
+  "2026-01-01",                                          // 신정
+  "2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20", // 설날 연휴+대체
+  "2026-03-01","2026-03-02",                             // 삼일절+대체
+  "2026-05-05",                                          // 어린이날
+  "2026-05-24","2026-05-25",                             // 부처님오신날+대체
+  "2026-06-06",                                          // 현충일
+  "2026-07-17",                                          // 제헌절
+  "2026-08-15","2026-08-17",                             // 광복절+대체
+  "2026-09-23","2026-09-24","2026-09-25","2026-09-26",   // 추석연휴
+  "2026-10-03","2026-10-05",                             // 개천절+대체
+  "2026-10-09",                                          // 한글날
+  "2026-12-25",                                          // 크리스마스
+  // 2027년
+  "2027-01-01",                                          // 신정
+  "2027-02-06","2027-02-07","2027-02-08","2027-02-09",   // 설날 연휴+대체
+  "2027-03-01",                                          // 삼일절
+  "2027-05-01",                                          // 근로자의 날 (공휴일 지정)
+  "2027-05-05",                                          // 어린이날
+  "2027-05-13",                                          // 부처님오신날
+  "2027-06-06",                                          // 현충일
+  "2027-07-17",                                          // 제헌절
+  "2027-08-15","2027-08-16",                             // 광복절+대체
+  "2027-09-14","2027-09-15","2027-09-16",                // 추석연휴
+  "2027-10-03",                                          // 개천절
+  "2027-10-09","2027-10-11",                             // 한글날+대체
+  "2027-12-25","2027-12-27",                             // 크리스마스+대체
+]);
+
+function isWeekendOrHoliday(dateStr) {
+  const d = new Date(dateStr);
+  const dow = d.getDay();
+  return dow === 0 || dow === 6 || HOLIDAYS.has(dateStr);
+}
+
+function calcWorkingDays(start, end) {
+  let count = 0;
+  const cur = new Date(start);
+  const endDate = new Date(end);
+  while (cur <= endDate) {
+    const ds = cur.toISOString().slice(0,10);
+    if (!isWeekendOrHoliday(ds)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
 const nowTime = () => new Date().toTimeString().slice(0, 5);
 const fmt = (d) => d ? new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "-";
 const diffDays = (a, b) => Math.ceil((new Date(b) - new Date(a)) / 86400000) + 1;
@@ -49,7 +98,7 @@ function saveState(key, val) {
 
 function calcUsedLeave(leaves, empId) {
   return leaves.filter(l => l.empId === empId && l.status === "approved")
-    .reduce((sum, l) => sum + diffDays(l.startDate, l.endDate), 0);
+    .reduce((sum, l) => sum + (l.leaveType === "반차" ? 0.5 : calcWorkingDays(l.startDate, l.endDate)), 0);
 }
 
 const C = {
@@ -202,8 +251,8 @@ function CalendarView({ leaves, companyEvents }) {
               <div style={{fontSize:12,color:C.sub}}>{fmt(e.startDate)}{e.startDate!==e.endDate?` ~ ${fmt(e.endDate)}`:""} · {e.type}</div>
             </div>)}
             {mLeaves.map(l => <div key={l.id} style={{background:C.card,borderRadius:12,padding:"12px 16px",borderLeft:`4px solid ${C.primary}`,boxShadow:"0 1px 6px #0001"}}>
-              <div style={{fontWeight:700,fontSize:14}}>{l.empName} 휴가</div>
-              <div style={{fontSize:12,color:C.sub}}>{fmt(l.startDate)} ~ {fmt(l.endDate)} ({diffDays(l.startDate,l.endDate)}일)</div>
+              <div style={{fontWeight:700,fontSize:14}}>{l.empName} {l.leaveType==="반차"?`${l.halfType||"오전"}반차`:"휴가"}</div>
+              <div style={{fontSize:12,color:C.sub}}>{l.leaveType==="반차"?fmt(l.startDate):`${fmt(l.startDate)} ~ ${fmt(l.endDate)}`} ({l.leaveType==="반차"?"0.5일":diffDays(l.startDate,l.endDate)+"일"})</div>
             </div>)}
           </div>
         </div>
@@ -275,7 +324,7 @@ function CompanyEventManager({ companyEvents, setCompanyEvents, showToast }) {
 
 function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, setLeaves, companyEvents, onLogout }) {
   const [tab, setTab] = useState("home");
-  const [leaveForm, setLeaveForm] = useState({ startDate:todayStr(), endDate:todayStr(), reason:"" });
+  const [leaveForm, setLeaveForm] = useState({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전" });
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
   const todayRec = attendance.find(a => a.empId===user.id && a.date===todayStr());
@@ -305,11 +354,12 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     setAttendance(next); saveState("attendance",next); showToast("👋 퇴근 완료!");
   };
   const applyLeave = () => {
-    const days = diffDays(leaveForm.startDate, leaveForm.endDate);
+    const days = leaveForm.leaveType === "반차" ? 0.5 : calcWorkingDays(leaveForm.startDate, leaveForm.endDate);
+    if (days === 0) { showToast("❌ 선택한 기간에 영업일이 없어요!"); return; }
     if (!user.unlimited && days > remainLeave) { showToast("❌ 남은 휴가가 부족해요!"); return; }
     const rec = { id:Date.now(), empId:user.id, empName:user.name, ...leaveForm, status:"pending", appliedAt:todayStr() };
     const next = [...leaves, rec]; setLeaves(next); saveState("leaves",next);
-    setLeaveForm({ startDate:todayStr(), endDate:todayStr(), reason:"" });
+    setLeaveForm({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전" });
     showToast("📋 휴가 신청 완료! 승인 대기 중이에요."); setTab("leave");
   };
   const cancelLeave = (id) => {
@@ -398,22 +448,59 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
         {tab==="apply" && (
           <div style={{background:C.card,borderRadius:16,padding:20,boxShadow:"0 1px 8px #0001"}}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>휴가 신청</div>
-            <div style={{fontSize:13,color:C.sub,marginBottom:20}}>잔여 휴가: <strong style={{color:C.green}}>{user.unlimited?"무제한 ∞":remainLeave+"일"}</strong></div>
-            {[["시작일","startDate"],["종료일","endDate"]].map(([l,k]) => (
-              <div key={k}>
-                <label style={{fontSize:13,color:C.sub,fontWeight:700}}>{l}</label>
-                <input type="date" value={leaveForm[k]} onChange={e => setLeaveForm(f=>({...f,[k]:e.target.value}))}
-                  style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:15,boxSizing:"border-box"}} />
-              </div>
-            ))}
-            <label style={{fontSize:13,color:C.sub,fontWeight:700}}>사유 (선택)</label>
-            <textarea value={leaveForm.reason} onChange={e => setLeaveForm(f=>({...f,reason:e.target.value}))} placeholder="사유를 입력하세요"
-              style={{display:"block",width:"100%",marginTop:6,marginBottom:20,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box",resize:"none",height:80,fontFamily:"inherit"}} />
-            {leaveForm.startDate && leaveForm.endDate && (
-              <div style={{background:C.primaryLight,borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:14}}>
-                신청 일수: <strong style={{color:C.primary}}>{diffDays(leaveForm.startDate,leaveForm.endDate)}일</strong>
+            <div style={{fontSize:13,color:C.sub,marginBottom:16}}>잔여 휴가: <strong style={{color:C.green}}>{user.unlimited?"무제한 ∞":remainLeave+"일"}</strong></div>
+
+            <label style={{fontSize:13,color:C.sub,fontWeight:700}}>휴가 종류</label>
+            <div style={{display:"flex",gap:8,marginTop:6,marginBottom:16}}>
+              {["연차","반차"].map(t => (
+                <button key={t} onClick={() => setLeaveForm(f=>({...f,leaveType:t}))}
+                  style={{flex:1,padding:"12px",border:"none",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,
+                    background:leaveForm.leaveType===t?C.primary:C.bg,
+                    color:leaveForm.leaveType===t?"#fff":C.sub}}>
+                  {t==="연차"?"📅 연차":"🌗 반차"}
+                </button>
+              ))}
+            </div>
+
+            {leaveForm.leaveType==="반차" && (
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:13,color:C.sub,fontWeight:700}}>반차 구분</label>
+                <div style={{display:"flex",gap:8,marginTop:6}}>
+                  {["오전","오후"].map(t => (
+                    <button key={t} onClick={() => setLeaveForm(f=>({...f,halfType:t}))}
+                      style={{flex:1,padding:"11px",border:`2px solid ${leaveForm.halfType===t?C.primary:C.border}`,borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,
+                        background:leaveForm.halfType===t?C.primaryLight:C.card,
+                        color:leaveForm.halfType===t?C.primary:C.sub}}>
+                      {t==="오전"?"🌅 오전반차":"🌇 오후반차"}
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontSize:12,color:C.sub,marginTop:8,background:C.bg,borderRadius:8,padding:"8px 12px"}}>
+                  {leaveForm.halfType==="오전" ? "오전반차: 오후 출근" : "오후반차: 오전 출근 후 오후 퇴근"}
+                </div>
               </div>
             )}
+
+            <label style={{fontSize:13,color:C.sub,fontWeight:700}}>{leaveForm.leaveType==="반차"?"날짜":"시작일"}</label>
+            <input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(f=>({...f,startDate:e.target.value,endDate:leaveForm.leaveType==="반차"?e.target.value:f.endDate}))}
+              style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:15,boxSizing:"border-box"}} />
+
+            {leaveForm.leaveType==="연차" && (
+              <div>
+                <label style={{fontSize:13,color:C.sub,fontWeight:700}}>종료일</label>
+                <input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(f=>({...f,endDate:e.target.value}))}
+                  style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:15,boxSizing:"border-box"}} />
+              </div>
+            )}
+
+            <label style={{fontSize:13,color:C.sub,fontWeight:700}}>사유 (선택)</label>
+            <textarea value={leaveForm.reason} onChange={e => setLeaveForm(f=>({...f,reason:e.target.value}))} placeholder="사유를 입력하세요"
+              style={{display:"block",width:"100%",marginTop:6,marginBottom:16,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box",resize:"none",height:70,fontFamily:"inherit"}} />
+
+            <div style={{background:C.primaryLight,borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:14}}>
+              차감 일수: <strong style={{color:C.primary}}>{leaveForm.leaveType==="반차"?"0.5일":calcWorkingDays(leaveForm.startDate,leaveForm.endDate)+"일"}</strong>
+              <span style={{fontSize:12,color:C.sub,marginLeft:6}}>(주말·공휴일 제외)</span>
+            </div>
             <button onClick={applyLeave} style={{...btn(C.primary),width:"100%",padding:"14px"}}>신청하기 →</button>
           </div>
         )}
@@ -426,10 +513,15 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
                   {myLeaves.map(l => (
                     <div key={l.id} style={{background:C.card,borderRadius:16,padding:18,boxShadow:"0 1px 8px #0001"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                        <div style={{fontWeight:700,fontSize:15}}>{fmt(l.startDate)} ~ {fmt(l.endDate)}</div>
+                        <div style={{fontWeight:700,fontSize:15}}>
+                          {l.leaveType==="반차" ? fmt(l.startDate) : `${fmt(l.startDate)} ~ ${fmt(l.endDate)}`}
+                          {l.leaveType==="반차" && <span style={{marginLeft:8,fontSize:12,background:C.yellowLight,color:C.yellow,padding:"2px 8px",borderRadius:20,fontWeight:700}}>{l.halfType||"오전"}반차</span>}
+                        </div>
                         {statusBadge(l.status)}
                       </div>
-                      <div style={{fontSize:13,color:C.sub,marginBottom:4}}>{diffDays(l.startDate,l.endDate)}일 · 신청일 {fmt(l.appliedAt)}</div>
+                      <div style={{fontSize:13,color:C.sub,marginBottom:4}}>
+                        {l.leaveType==="반차" ? `반차 (${l.halfType||"오전"}) · 0.5일` : `${calcWorkingDays(l.startDate,l.endDate)}일 (영업일)`} · 신청일 {fmt(l.appliedAt)}
+                      </div>
                       {l.reason && <div style={{fontSize:13,color:C.sub}}>{l.reason}</div>}
                       {l.status==="pending" && <button onClick={()=>cancelLeave(l.id)}
                         style={{...btn(C.redLight,C.red),marginTop:10,fontSize:12,padding:"6px 14px"}}>취소하기</button>}
@@ -518,7 +610,7 @@ function AdminScreen({ employees, attendance, leaves, setLeaves, companyEvents, 
                         <div key={l.id} style={{background:C.card,borderRadius:12,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 6px #0001"}}>
                           <div>
                             <div style={{fontWeight:700,fontSize:14}}>{l.empName}</div>
-                            <div style={{fontSize:12,color:C.sub}}>{fmt(l.startDate)} ~ {fmt(l.endDate)}</div>
+                            <div style={{fontSize:12,color:C.sub}}>{l.leaveType==="반차"?`${fmt(l.startDate)} (${l.halfType||"오전"}반차)`:`${fmt(l.startDate)} ~ ${fmt(l.endDate)}`}</div>
                           </div>
                           <span style={{fontSize:12,fontWeight:700,color,background:color+"22",padding:"4px 12px",borderRadius:20}}>{label}</span>
                         </div>
