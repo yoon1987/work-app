@@ -106,7 +106,7 @@ async function dbLoad(table) {
   if (error) { console.error(error); return []; }
   return data.map(r => {
     if (table === "attendance") return { id: r.id, empId: r.emp_id, date: r.date, clockIn: r.clock_in, clockOut: r.clock_out };
-    if (table === "leaves") return { id: r.id, empId: r.emp_id, empName: r.emp_name, startDate: r.start_date, endDate: r.end_date, reason: r.reason, leaveType: r.leave_type, halfType: r.half_type, status: r.status, appliedAt: r.applied_at };
+    if (table === "leaves") return { id: r.id, empId: r.emp_id, empName: r.emp_name, startDate: r.start_date, endDate: r.end_date, reason: r.reason, leaveType: r.leave_type, halfType: r.half_type, status: r.status, appliedAt: r.applied_at, startHalf: r.start_half||false, endHalf: r.end_half||false };
     if (table === "company_events") return { id: r.id, title: r.title, type: r.type, startDate: r.start_date, endDate: r.end_date, color: r.color };
     return r;
   });
@@ -115,10 +115,15 @@ async function dbLoad(table) {
 async function dbUpsert(table, item) {
   let row;
   if (table === "attendance") row = { id: item.id, emp_id: item.empId, date: item.date, clock_in: item.clockIn, clock_out: item.clockOut };
-  else if (table === "leaves") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, start_date: item.startDate, end_date: item.endDate, reason: item.reason, leave_type: item.leaveType, half_type: item.halfType, status: item.status, applied_at: item.appliedAt };
+  else if (table === "leaves") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, start_date: item.startDate, end_date: item.endDate, reason: item.reason, leave_type: item.leaveType, half_type: item.halfType, status: item.status, applied_at: item.appliedAt, start_half: item.startHalf||false, end_half: item.endHalf||false };
   else if (table === "company_events") row = { id: item.id, title: item.title, type: item.type, start_date: item.startDate, end_date: item.endDate, color: item.color };
-  const { error } = await sb.from(table).upsert(row);
-  if (error) console.error(error);
+  const { error } = await sb.from(table).upsert(row, { onConflict: "id" });
+  if (error) console.error("upsert error:", table, error);
+}
+
+async function dbUpdate(table, id, fields) {
+  const { error } = await sb.from(table).update(fields).eq("id", id);
+  if (error) console.error("update error:", table, error);
 }
 
 async function dbDelete(table, id) {
@@ -394,16 +399,15 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
   };
   const clockOut = async () => {
     if (!todayRec?.clockIn||todayRec?.clockOut) return;
-    const updated = {...todayRec, clockOut:nowTime()};
-    await dbUpsert("attendance", updated);
-    setAttendance(prev => prev.map(a => a.id===todayRec.id ? updated : a));
+    const t = nowTime();
+    await dbUpdate("attendance", todayRec.id, { clock_out: t });
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? {...a, clockOut:t} : a));
     showToast("👋 퇴근 완료!");
   };
   const cancelClockOut = async () => {
     if (!todayRec?.clockOut) return;
-    const updated = {...todayRec, clockOut:null};
-    await dbUpsert("attendance", updated);
-    setAttendance(prev => prev.map(a => a.id===todayRec.id ? updated : a));
+    await dbUpdate("attendance", todayRec.id, { clock_out: null });
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? {...a, clockOut:null} : a));
     showToast("↩️ 퇴근 취소됐어요.");
   };
   const applyLeave = async () => {
@@ -646,9 +650,9 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
   const approvedLeaves = leaves.filter(l => l.status==="approved");
   const tStr = todayStr();
   const onLeaveToday = approvedLeaves.filter(l => l.startDate<=tStr && l.endDate>=tStr);
-  const decide = (id, status) => {
-    const next = leaves.map(l => l.id===id?{...l,status}:l);
-    setLeaves(next); saveState("leaves",next);
+  const decide = async (id, status) => {
+    await dbUpdate("leaves", id, { status });
+    setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
   const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"}];
