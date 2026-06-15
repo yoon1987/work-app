@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23fdfaf5'/%3E%3Ctext x='90' y='82' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eurvs%3C/text%3E%3Ctext x='90' y='130' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eeveri%3C/text%3E%3C/svg%3E"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23fdfaf5'/%3E%3Ctext x='90' y='82' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eurvs%3C/text%3E%3Ctext x='90' y='130' font-family='Georgia,serif' font-size='42' font-weight='900' text-anchor='middle' fill='%233d3028'%3Eeveri%3C/text%3E%3C/svg%3E"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:system-ui,-apple-system,sans-serif;background:#f5f0e8;}</style>
@@ -18,7 +19,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useEffect } = React;
 
 const INITIAL_EMPLOYEES = [
   { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "921218" },
@@ -96,9 +97,44 @@ function saveState(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
+const SUPABASE_URL = "https://yuexnstgquuzutcvcpxp.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1ZXhuc3RncXV1enV0Y3ZjcHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0ODk2NTYsImV4cCI6MjA5NzA2NTY1Nn0.RtJWkMmQiv0MdrpoyPjOvSq3Gowf8IXALQUoa1W3c0s";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function dbLoad(table) {
+  const { data, error } = await sb.from(table).select("*");
+  if (error) { console.error(error); return []; }
+  return data.map(r => {
+    if (table === "attendance") return { id: r.id, empId: r.emp_id, date: r.date, clockIn: r.clock_in, clockOut: r.clock_out };
+    if (table === "leaves") return { id: r.id, empId: r.emp_id, empName: r.emp_name, startDate: r.start_date, endDate: r.end_date, reason: r.reason, leaveType: r.leave_type, halfType: r.half_type, status: r.status, appliedAt: r.applied_at };
+    if (table === "company_events") return { id: r.id, title: r.title, type: r.type, startDate: r.start_date, endDate: r.end_date, color: r.color };
+    return r;
+  });
+}
+
+async function dbUpsert(table, item) {
+  let row;
+  if (table === "attendance") row = { id: item.id, emp_id: item.empId, date: item.date, clock_in: item.clockIn, clock_out: item.clockOut };
+  else if (table === "leaves") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, start_date: item.startDate, end_date: item.endDate, reason: item.reason, leave_type: item.leaveType, half_type: item.halfType, status: item.status, applied_at: item.appliedAt };
+  else if (table === "company_events") row = { id: item.id, title: item.title, type: item.type, start_date: item.startDate, end_date: item.endDate, color: item.color };
+  const { error } = await sb.from(table).upsert(row);
+  if (error) console.error(error);
+}
+
+async function dbDelete(table, id) {
+  const { error } = await sb.from(table).delete().eq("id", id);
+  if (error) console.error(error);
+}
+
 function calcUsedLeave(leaves, empId) {
   return leaves.filter(l => l.empId === empId && l.status === "approved")
-    .reduce((sum, l) => sum + (l.leaveType === "반차" ? 0.5 : calcWorkingDays(l.startDate, l.endDate)), 0);
+    .reduce((sum, l) => {
+      if (l.leaveType === "반차") return sum + 0.5;
+      let d = calcWorkingDays(l.startDate, l.endDate);
+      if (l.startHalf) d -= 0.5;
+      if (l.endHalf) d -= 0.5;
+      return sum + Math.max(d, 0);
+    }, 0);
 }
 
 const C = {
@@ -263,16 +299,17 @@ function CalendarView({ leaves, companyEvents }) {
 
 function CompanyEventManager({ companyEvents, setCompanyEvents, showToast }) {
   const [form, setForm] = useState({ title:"", type:"팝업", startDate:todayStr(), endDate:todayStr(), color:EVENT_COLORS[0] });
-  const addEvent = () => {
+  const addEvent = async () => {
     if (!form.title.trim()) { showToast("일정 이름을 입력해주세요!"); return; }
-    const next = [...companyEvents, { id:Date.now(), ...form }];
-    setCompanyEvents(next); saveState("companyEvents", next);
+    const ev = { id:Date.now(), ...form };
+    await dbUpsert("company_events", ev);
+    setCompanyEvents(prev => [...prev, ev]);
     setForm({ title:"", type:"팝업", startDate:todayStr(), endDate:todayStr(), color:EVENT_COLORS[0] });
     showToast("📌 일정이 추가됐어요!");
   };
-  const deleteEvent = (id) => {
-    const next = companyEvents.filter(e => e.id !== id);
-    setCompanyEvents(next); saveState("companyEvents", next);
+  const deleteEvent = async (id) => {
+    await dbDelete("company_events", id);
+    setCompanyEvents(prev => prev.filter(e => e.id !== id));
     showToast("🗑 일정이 삭제됐어요.");
   };
   const inp = (extra={}) => ({display:"block",width:"100%",padding:"11px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box",outline:"none",...extra});
@@ -324,7 +361,7 @@ function CompanyEventManager({ companyEvents, setCompanyEvents, showToast }) {
 
 function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, setLeaves, companyEvents, onLogout }) {
   const [tab, setTab] = useState("home");
-  const [leaveForm, setLeaveForm] = useState({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전" });
+  const [leaveForm, setLeaveForm] = useState({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전", startHalf:false, startHalfType:"오전", endHalf:false, endHalfType:"오후" });
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
   const todayRec = attendance.find(a => a.empId===user.id && a.date===todayStr());
@@ -342,28 +379,53 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     return `${Math.floor(mins/60)}시간 ${mins%60}분`;
   };
 
-  const clockIn = () => {
+  const clockIn = async () => {
     if (todayRec?.clockIn) return;
     const rec = { id:Date.now(), empId:user.id, date:todayStr(), clockIn:nowTime(), clockOut:null };
-    const next = [...attendance, rec]; setAttendance(next); saveState("attendance",next);
+    await dbUpsert("attendance", rec);
+    setAttendance(prev => [...prev, rec]);
     showToast("✅ 출근 완료!");
   };
-  const clockOut = () => {
-    if (!todayRec?.clockIn||todayRec?.clockOut) return;
-    const next = attendance.map(a => a.id===todayRec.id?{...a,clockOut:nowTime()}:a);
-    setAttendance(next); saveState("attendance",next); showToast("👋 퇴근 완료!");
+  const cancelClockIn = async () => {
+    if (!todayRec || todayRec.clockOut) return;
+    await dbDelete("attendance", todayRec.id);
+    setAttendance(prev => prev.filter(a => a.id !== todayRec.id));
+    showToast("↩️ 출근 취소됐어요.");
   };
-  const applyLeave = () => {
-    const days = leaveForm.leaveType === "반차" ? 0.5 : calcWorkingDays(leaveForm.startDate, leaveForm.endDate);
-    if (days === 0) { showToast("❌ 선택한 기간에 영업일이 없어요!"); return; }
+  const clockOut = async () => {
+    if (!todayRec?.clockIn||todayRec?.clockOut) return;
+    const updated = {...todayRec, clockOut:nowTime()};
+    await dbUpsert("attendance", updated);
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? updated : a));
+    showToast("👋 퇴근 완료!");
+  };
+  const cancelClockOut = async () => {
+    if (!todayRec?.clockOut) return;
+    const updated = {...todayRec, clockOut:null};
+    await dbUpsert("attendance", updated);
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? updated : a));
+    showToast("↩️ 퇴근 취소됐어요.");
+  };
+  const applyLeave = async () => {
+    let days;
+    if (leaveForm.leaveType === "반차") {
+      days = 0.5;
+    } else {
+      days = calcWorkingDays(leaveForm.startDate, leaveForm.endDate);
+      if (leaveForm.startHalf) days -= 0.5;
+      if (leaveForm.endHalf) days -= 0.5;
+    }
+    if (days <= 0) { showToast("❌ 선택한 기간에 영업일이 없어요!"); return; }
     if (!user.unlimited && days > remainLeave) { showToast("❌ 남은 휴가가 부족해요!"); return; }
     const rec = { id:Date.now(), empId:user.id, empName:user.name, ...leaveForm, status:"pending", appliedAt:todayStr() };
-    const next = [...leaves, rec]; setLeaves(next); saveState("leaves",next);
-    setLeaveForm({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전" });
+    await dbUpsert("leaves", rec);
+    setLeaves(prev => [...prev, rec]);
+    setLeaveForm({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전", startHalf:false, startHalfType:"오전", endHalf:false, endHalfType:"오후" });
     showToast("📋 휴가 신청 완료! 승인 대기 중이에요."); setTab("leave");
   };
-  const cancelLeave = (id) => {
-    const next = leaves.filter(l => l.id!==id); setLeaves(next); saveState("leaves",next);
+  const cancelLeave = async (id) => {
+    await dbDelete("leaves", id);
+    setLeaves(prev => prev.filter(l => l.id!==id));
     showToast("🗑 신청이 취소됐어요.");
   };
 
@@ -410,12 +472,24 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
               </div>
               {todayRec?.clockIn && todayRec?.clockOut && <div style={{textAlign:"center",fontSize:13,color:C.sub,marginBottom:12}}>근무시간 {calcHours(todayRec.clockIn,todayRec.clockOut)}</div>}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <button onClick={clockIn} disabled={!!todayRec?.clockIn}
-                  style={{...btn(todayRec?.clockIn?"#e9ecef":C.green,todayRec?.clockIn?C.sub:"#fff"),padding:"14px"}}>
-                  {todayRec?.clockIn?"출근 완료":"출근하기 ✅"}</button>
-                <button onClick={clockOut} disabled={!todayRec?.clockIn||!!todayRec?.clockOut}
-                  style={{...btn((!todayRec?.clockIn||todayRec?.clockOut)?"#e9ecef":C.accent,(!todayRec?.clockIn||todayRec?.clockOut)?C.sub:"#fff"),padding:"14px"}}>
-                  {todayRec?.clockOut?"퇴근 완료":"퇴근하기 👋"}</button>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockIn} disabled={!!todayRec?.clockIn}
+                    style={{...btn(todayRec?.clockIn?"#e9ecef":C.green,todayRec?.clockIn?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockIn?"출근 완료 ✅":"출근하기 ✅"}</button>
+                  {todayRec?.clockIn && !todayRec?.clockOut && (
+                    <button onClick={cancelClockIn}
+                      style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>출근 취소 ↩️</button>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockOut} disabled={!todayRec?.clockIn||!!todayRec?.clockOut}
+                    style={{...btn((!todayRec?.clockIn||todayRec?.clockOut)?"#e9ecef":C.accent,(!todayRec?.clockIn||todayRec?.clockOut)?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockOut?"퇴근 완료 👋":"퇴근하기 👋"}</button>
+                  {todayRec?.clockOut && (
+                    <button onClick={cancelClockOut}
+                      style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>퇴근 취소 ↩️</button>
+                  )}
+                </div>
               </div>
             </div>
             <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
@@ -453,7 +527,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
             <label style={{fontSize:13,color:C.sub,fontWeight:700}}>휴가 종류</label>
             <div style={{display:"flex",gap:8,marginTop:6,marginBottom:16}}>
               {["연차","반차"].map(t => (
-                <button key={t} onClick={() => setLeaveForm(f=>({...f,leaveType:t}))}
+                <button key={t} onClick={() => setLeaveForm(f=>({...f,leaveType:t,startHalf:false,endHalf:false}))}
                   style={{flex:1,padding:"12px",border:"none",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,
                     background:leaveForm.leaveType===t?C.primary:C.bg,
                     color:leaveForm.leaveType===t?"#fff":C.sub}}>
@@ -462,10 +536,10 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
               ))}
             </div>
 
-            {leaveForm.leaveType==="반차" && (
-              <div style={{marginBottom:16}}>
+            {leaveForm.leaveType==="반차" ? (
+              <div>
                 <label style={{fontSize:13,color:C.sub,fontWeight:700}}>반차 구분</label>
-                <div style={{display:"flex",gap:8,marginTop:6}}>
+                <div style={{display:"flex",gap:8,marginTop:6,marginBottom:14}}>
                   {["오전","오후"].map(t => (
                     <button key={t} onClick={() => setLeaveForm(f=>({...f,halfType:t}))}
                       style={{flex:1,padding:"11px",border:`2px solid ${leaveForm.halfType===t?C.primary:C.border}`,borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,
@@ -475,30 +549,58 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
                     </button>
                   ))}
                 </div>
-                <div style={{fontSize:12,color:C.sub,marginTop:8,background:C.bg,borderRadius:8,padding:"8px 12px"}}>
-                  {leaveForm.halfType==="오전" ? "오전반차: 오후 출근" : "오후반차: 오전 출근 후 오후 퇴근"}
-                </div>
-              </div>
-            )}
-
-            <label style={{fontSize:13,color:C.sub,fontWeight:700}}>{leaveForm.leaveType==="반차"?"날짜":"시작일"}</label>
-            <input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(f=>({...f,startDate:e.target.value,endDate:leaveForm.leaveType==="반차"?e.target.value:f.endDate}))}
-              style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:15,boxSizing:"border-box"}} />
-
-            {leaveForm.leaveType==="연차" && (
-              <div>
-                <label style={{fontSize:13,color:C.sub,fontWeight:700}}>종료일</label>
-                <input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(f=>({...f,endDate:e.target.value}))}
+                <label style={{fontSize:13,color:C.sub,fontWeight:700}}>날짜</label>
+                <input type="date" value={leaveForm.startDate}
+                  onChange={e => setLeaveForm(f=>({...f,startDate:e.target.value,endDate:e.target.value}))}
                   style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:15,boxSizing:"border-box"}} />
+              </div>
+            ) : (
+              <div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:8}}>
+                  <div>
+                    <label style={{fontSize:13,color:C.sub,fontWeight:700}}>시작일</label>
+                    <input type="date" value={leaveForm.startDate}
+                      onChange={e => setLeaveForm(f=>({...f,startDate:e.target.value}))}
+                      style={{display:"block",width:"100%",marginTop:6,padding:"11px 12px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box"}} />
+                  </div>
+                  <div>
+                    <label style={{fontSize:13,color:C.sub,fontWeight:700}}>종료일</label>
+                    <input type="date" value={leaveForm.endDate}
+                      onChange={e => setLeaveForm(f=>({...f,endDate:e.target.value}))}
+                      style={{display:"block",width:"100%",marginTop:6,padding:"11px 12px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box"}} />
+                  </div>
+                </div>
+                <div style={{background:C.bg,borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13}}>
+                  <div style={{fontWeight:700,color:C.text,marginBottom:6}}>🌗 시작/종료일 반차 옵션</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <input type="checkbox" id="startHalf" checked={leaveForm.startHalf}
+                      onChange={e => setLeaveForm(f=>({...f,startHalf:e.target.checked}))}
+                      style={{width:16,height:16,cursor:"pointer"}} />
+                    <label htmlFor="startHalf" style={{cursor:"pointer",color:C.text}}>시작일 오후반차부터 (오전 근무)</label>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input type="checkbox" id="endHalf" checked={leaveForm.endHalf}
+                      onChange={e => setLeaveForm(f=>({...f,endHalf:e.target.checked}))}
+                      style={{width:16,height:16,cursor:"pointer"}} />
+                    <label htmlFor="endHalf" style={{cursor:"pointer",color:C.text}}>종료일 오전반차까지 (오후 출근)</label>
+                  </div>
+                </div>
               </div>
             )}
 
             <label style={{fontSize:13,color:C.sub,fontWeight:700}}>사유 (선택)</label>
             <textarea value={leaveForm.reason} onChange={e => setLeaveForm(f=>({...f,reason:e.target.value}))} placeholder="사유를 입력하세요"
-              style={{display:"block",width:"100%",marginTop:6,marginBottom:16,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box",resize:"none",height:70,fontFamily:"inherit"}} />
+              style={{display:"block",width:"100%",marginTop:6,marginBottom:14,padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:14,boxSizing:"border-box",resize:"none",height:60,fontFamily:"inherit"}} />
 
             <div style={{background:C.primaryLight,borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:14}}>
-              차감 일수: <strong style={{color:C.primary}}>{leaveForm.leaveType==="반차"?"0.5일":calcWorkingDays(leaveForm.startDate,leaveForm.endDate)+"일"}</strong>
+              차감 일수: <strong style={{color:C.primary}}>
+                {leaveForm.leaveType==="반차" ? "0.5일" : (() => {
+                  let d = calcWorkingDays(leaveForm.startDate, leaveForm.endDate);
+                  if (leaveForm.startHalf) d -= 0.5;
+                  if (leaveForm.endHalf) d -= 0.5;
+                  return Math.max(d,0) + "일";
+                })()}
+              </strong>
               <span style={{fontSize:12,color:C.sub,marginLeft:6}}>(주말·공휴일 제외)</span>
             </div>
             <button onClick={applyLeave} style={{...btn(C.primary),width:"100%",padding:"14px"}}>신청하기 →</button>
@@ -536,7 +638,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
   );
 }
 
-function AdminScreen({ employees, attendance, leaves, setLeaves, companyEvents, setCompanyEvents, onLogout }) {
+function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, companyEvents, setCompanyEvents, onLogout }) {
   const [tab, setTab] = useState("leave");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
@@ -679,16 +781,36 @@ function AdminScreen({ employees, attendance, leaves, setLeaves, companyEvents, 
 
 function App() {
   const [user, setUser] = useState(() => loadState("currentUser", null));
-  const [employees] = useState(() => loadState("employees", INITIAL_EMPLOYEES));
-  const [attendance, setAttendance] = useState(() => loadState("attendance", []));
-  const [leaves, setLeaves] = useState(() => loadState("leaves", []));
-  const [companyEvents, setCompanyEvents] = useState(() => loadState("companyEvents", []));
+  const [employees] = useState(INITIAL_EMPLOYEES);
+  const [attendance, setAttendance] = useState([]);
+  const [leaves, setLeaves] = useState([]);
+  const [companyEvents, setCompanyEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAll() {
+      const [att, lev, evt] = await Promise.all([
+        dbLoad("attendance"), dbLoad("leaves"), dbLoad("company_events"),
+      ]);
+      setAttendance(att); setLeaves(lev); setCompanyEvents(evt);
+      setLoading(false);
+    }
+    fetchAll();
+  }, []);
 
   const login = (u) => { setUser(u); saveState("currentUser", u); };
   const logout = () => { setUser(null); saveState("currentUser", null); };
 
+  if (loading) return (
+    <div style={{minHeight:"100vh",background:"#f5f0e8",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
+      <div style={{fontSize:36}}>🏢</div>
+      <div style={{fontSize:16,fontWeight:700,color:"#8b7355"}}>DYNA team</div>
+      <div style={{fontSize:13,color:"#9e8e7e"}}>데이터 불러오는 중...</div>
+    </div>
+  );
+
   if (!user) return <LoginScreen employees={employees} onLogin={login} />;
-  if (user.role==="admin") return <AdminScreen employees={employees} attendance={attendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} onLogout={logout} />;
+  if (user.role==="admin") return <AdminScreen employees={employees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} onLogout={logout} />;
   return <EmployeeScreen user={user} employees={employees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} onLogout={logout} />;
 }
 
