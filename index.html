@@ -240,6 +240,7 @@ function CalendarView({ leaves, companyEvents }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [selectedDate, setSelectedDate] = useState(null);
   const approvedLeaves = leaves.filter(l => l.status === "approved");
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -256,6 +257,10 @@ function CalendarView({ leaves, companyEvents }) {
   const mEnd = `${year}-${pad(month+1)}-${pad(daysInMonth)}`;
   const mLeaves = approvedLeaves.filter(l => l.startDate <= mEnd && l.endDate >= mStart);
   const mEvents = (companyEvents||[]).filter(e => e.startDate <= mEnd && e.endDate >= mStart);
+
+  // 선택된 날짜의 일정
+  const selLeaves = selectedDate ? approvedLeaves.filter(l => l.startDate <= selectedDate && l.endDate >= selectedDate) : [];
+  const selEvents = selectedDate ? (companyEvents||[]).filter(e => e.startDate <= selectedDate && e.endDate >= selectedDate) : [];
 
   return (
     <div>
@@ -278,10 +283,15 @@ function CalendarView({ leaves, companyEvents }) {
             const lp = approvedLeaves.filter(l => l.startDate <= s && l.endDate >= s);
             const ev = (companyEvents||[]).filter(e => e.startDate <= s && e.endDate >= s);
             const isToday = s === tStr;
+            const isSelected = s === selectedDate;
+            const hasItems = lp.length > 0 || ev.length > 0;
             const col = (firstDay+i)%7;
             return (
-              <div key={d} style={{height:80,overflow:"hidden",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,
-                padding:"4px",background:isToday?C.primaryLight:C.card}}>
+              <div key={d} onClick={() => setSelectedDate(s === selectedDate ? null : s)}
+                style={{height:80,overflow:"hidden",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,
+                  padding:"4px",cursor:hasItems?"pointer":"default",
+                  background:isSelected?"#f0e8d8":isToday?C.primaryLight:C.card,
+                  transition:"background 0.15s"}}>
                 <div style={{fontSize:12,width:isToday?20:"auto",height:isToday?20:"auto",
                   background:isToday?C.primary:"none",color:isToday?"#fff":col===0?C.red:col===6?"#4dabf7":C.text,
                   borderRadius:isToday?"50%":0,display:"flex",alignItems:"center",justifyContent:"center",
@@ -295,6 +305,37 @@ function CalendarView({ leaves, companyEvents }) {
           })}
         </div>
       </div>
+
+      {/* 선택된 날짜 팝업 */}
+      {selectedDate && (selLeaves.length > 0 || selEvents.length > 0) && (
+        <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 2px 16px #0002",border:`2px solid ${C.primary}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontWeight:800,fontSize:15}}>📅 {fmt(selectedDate)} 일정</div>
+            <button onClick={()=>setSelectedDate(null)} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:C.sub}}>✕</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {selEvents.map(e => (
+              <div key={e.id} style={{borderLeft:`4px solid ${e.color}`,paddingLeft:12,paddingTop:4,paddingBottom:4}}>
+                <div style={{fontWeight:700,color:e.color,fontSize:14}}>{e.title}</div>
+                <div style={{fontSize:12,color:C.sub}}>{e.type} · {fmt(e.startDate)}{e.startDate!==e.endDate?" ~ "+fmt(e.endDate):""}</div>
+              </div>
+            ))}
+            {selLeaves.map(l => (
+              <div key={l.id} style={{borderLeft:`4px solid ${C.primary}`,paddingLeft:12,paddingTop:4,paddingBottom:4}}>
+                <div style={{fontWeight:700,fontSize:14}}>{l.empName} {l.leaveType==="반차"?(l.halfType||"오전")+"반차":"휴가"}</div>
+                <div style={{fontSize:12,color:C.sub}}>{l.leaveType==="반차"?fmt(l.startDate):fmt(l.startDate)+" ~ "+fmt(l.endDate)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {selectedDate && selLeaves.length===0 && selEvents.length===0 && (
+        <div style={{background:C.card,borderRadius:16,padding:16,marginBottom:16,textAlign:"center",color:C.sub,fontSize:13}}>
+          {fmt(selectedDate)} 일정이 없어요
+        </div>
+      )}
+
+      {/* 이번달 일정 목록 */}
       {(mLeaves.length > 0 || mEvents.length > 0) && (
         <div>
           <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>이번달 일정</div>
