@@ -286,7 +286,7 @@ function CalendarView({ leaves, companyEvents }) {
                   background:isToday?C.primary:"none",color:isToday?"#fff":col===0?C.red:col===6?"#4dabf7":C.text,
                   borderRadius:isToday?"50%":0,display:"flex",alignItems:"center",justifyContent:"center",
                   fontWeight:isToday?800:400,marginBottom:2}}>{d}</div>
-                {lp.slice(0,2).map((l,idx) => <div key={idx} style={{fontSize:9,background:"#e8f5e9",color:C.primary,
+                {lp.slice(0,2).map((l,idx) => <div key={idx} style={{fontSize:9,background:"#fce4ec",color:C.primary,
                   borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{l.empName}</div>)}
                 {ev.slice(0,1).map((e,idx) => <div key={idx} style={{fontSize:9,background:e.color+"33",color:e.color,
                   borderRadius:3,padding:"1px 3px",fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{e.title}</div>)}
