@@ -29,11 +29,11 @@ const INITIAL_EMPLOYEES = [
   { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901" },
   { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410" },
   { id: 7, name: "김현지", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "941125" },
+  { id: 8, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031" },
   { id: 9, name: "장은진", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "900129" },
-  { id: 77, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031" },
 ];
 
-const ADMIN = { id: 0, name: "최윤정", role: "admin", password: "871031" };
+const ADMIN = { id: 8, name: "최윤정", role: "admin", password: "871031" };
 const EVENT_COLORS = ["#3b5bdb","#f76707","#2f9e44","#e03131","#7c3aed","#0ca678"];
 const EVENT_TYPES = ["팝업", "워크샵", "할인행사", "회의", "기타"];
 
@@ -705,7 +705,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
-  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"},{k:"members",label:"👤 직원 관리"}];
+  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"},{k:"members",label:"👤 직원 관리"},{k:"myleave",label:"🏖️ 내 휴가"},{k:"report",label:"📊 근태 리포트"}];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
@@ -828,6 +828,12 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
           </div>
         )}
         {tab==="events" && <CompanyEventManager companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} showToast={showToast} />}
+        {tab==="myleave" && (
+          <AdminLeaveManager leaves={leaves} setLeaves={setLeaves} showToast={showToast} />
+        )}
+        {tab==="report" && (
+          <AttendanceReport employees={employees} attendance={attendance} leaves={leaves} />
+        )}
         {tab==="members" && (
           <div>
             <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>직원 관리</div>
