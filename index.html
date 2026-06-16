@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>DYNA team</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
@@ -1456,7 +1456,14 @@ function AdminLeaveManager({ leaves, setLeaves, showToast }) {
 }
 
 function App() {
-  const [user, setUser] = useState(()=>loadState("currentUser",null));
+  const [user, setUser] = useState(()=>{
+    const saved = loadState("currentUser", null);
+    if (!saved) return null;
+    if (saved.role === "admin") return saved;
+    // 저장된 user를 최신 INITIAL_EMPLOYEES로 업데이트
+    const fresh = INITIAL_EMPLOYEES.find(e=>e.id===saved.id);
+    return fresh ? {...fresh, role: saved.role||"직원"} : saved;
+  });
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES); // 항상 최신 데이터 사용
   const [attendance, setAttendance] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -1478,7 +1485,13 @@ function App() {
     return ()=>clearInterval(timer);
   },[]);
 
-  const login = (u)=>{setUser(u);saveState("currentUser",u);};
+  const login = (u)=>{
+    // 항상 최신 INITIAL_EMPLOYEES 데이터로 덮어씌우기
+    const fresh = INITIAL_EMPLOYEES.find(e=>e.id===u.id);
+    const finalUser = fresh ? {...fresh, role: u.role||"직원"} : u;
+    setUser(finalUser);
+    saveState("currentUser", finalUser);
+  };
   const logout = ()=>{setUser(null);saveState("currentUser",null);};
 
   if (loading) return (
