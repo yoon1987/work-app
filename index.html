@@ -626,6 +626,76 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
             <button onClick={applyLeave} style={{...btn(C.primary),width:"100%",padding:"14px"}}>신청하기 →</button>
           </div>
         )}
+        {tab==="home" && (
+          <div>
+            {/* 출퇴근 카드 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:4}}>오늘 출퇴근</div>
+              <div style={{fontSize:12,color:C.sub,marginBottom:16}}>{new Date().toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                <div style={{background:C.greenLight,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,color:C.green,fontWeight:700}}>출근</div>
+                  <div style={{fontSize:22,fontWeight:800,color:C.text}}>{todayRec?.clockIn||"--:--"}</div>
+                </div>
+                <div style={{background:C.primaryLight,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,color:C.primary,fontWeight:700}}>퇴근</div>
+                  <div style={{fontSize:22,fontWeight:800,color:C.text}}>{todayRec?.clockOut||"--:--"}</div>
+                </div>
+              </div>
+              {todayRec?.clockIn&&todayRec?.clockOut&&(
+                <div style={{textAlign:"center",fontSize:13,color:C.sub,marginBottom:12}}>근무시간 {calcHours(todayRec.clockIn,todayRec.clockOut)}</div>
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockIn} disabled={!!todayRec?.clockIn}
+                    style={{...btn(todayRec?.clockIn?"#e9ecef":C.green,todayRec?.clockIn?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockIn?"출근 완료 ✅":"출근하기 ✅"}</button>
+                  {todayRec?.clockIn&&!todayRec?.clockOut&&(
+                    <button onClick={cancelClockIn} style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>출근 취소 ↩️</button>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockOut} disabled={!todayRec?.clockIn||!!todayRec?.clockOut}
+                    style={{...btn((!todayRec?.clockIn||todayRec?.clockOut)?"#e9ecef":C.accent,(!todayRec?.clockIn||todayRec?.clockOut)?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockOut?"퇴근 완료 👋":"퇴근하기 👋"}</button>
+                  {todayRec?.clockOut&&(
+                    <button onClick={cancelClockOut} style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>퇴근 취소 ↩️</button>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* 휴가 현황 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:12}}>휴가 현황</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div style={{background:C.bg,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:C.sub}}>사용</div>
+                  <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{usedLeave}일</div>
+                </div>
+                <div style={{background:C.bg,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:C.sub}}>무제한 ∞</div>
+                  <div style={{fontSize:20,fontWeight:800,color:C.primary}}>∞</div>
+                </div>
+              </div>
+            </div>
+            {/* 이번달 근무 기록 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:12}}>이번달 근무 기록</div>
+              {monthRecs.length===0
+                ? <div style={{textAlign:"center",color:C.sub,fontSize:13,padding:"20px 0"}}>기록이 없어요</div>
+                : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[...monthRecs].reverse().map(r=>(
+                      <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bg,borderRadius:10,padding:"10px 14px"}}>
+                        <div style={{fontSize:13,fontWeight:600}}>{fmt(r.date)}</div>
+                        <div style={{fontSize:13,color:C.sub}}>{r.clockIn} → {r.clockOut||"근무중"}</div>
+                        <div style={{fontSize:12,color:C.primary}}>{calcHours(r.clockIn,r.clockOut)}</div>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          </div>
+        )}
         {tab==="leave" && (
           <div>
             <div style={{fontSize:16,fontWeight:800,marginBottom:16}}>내 휴가 내역</div>
@@ -704,7 +774,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
-  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"},{k:"myleave",label:"🏖️ 내 휴가"}];
+  const TABS = [{k:"home",label:"🏠 내 홈"},{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"calendar",label:"📅 팀 캘린더"},{k:"events",label:"📌 회사 일정"},{k:"myleave",label:"🏖️ 내 휴가"}];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
@@ -713,7 +783,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:12,opacity:0.7}}>관리자 모드 👑</div>
-            <div style={{fontSize:20,fontWeight:800}}>최윤정 대표님</div>
+            <div style={{fontSize:20,fontWeight:800}}>최윤정 사장님</div>
           </div>
           <button onClick={onLogout} style={{...btn("rgba(255,255,255,0.15)","#fff"),fontSize:12,padding:"6px 14px"}}>로그아웃</button>
         </div>
@@ -733,6 +803,76 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
             color:tab===t.k?C.primary:C.sub,borderBottom:tab===t.k?`2px solid ${C.primary}`:"2px solid transparent"}}>{t.label}</button>)}
       </div>
       <div style={{padding:16,maxWidth:600,margin:"0 auto"}}>
+        {tab==="home" && (
+          <div>
+            {/* 출퇴근 카드 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:4}}>오늘 출퇴근</div>
+              <div style={{fontSize:12,color:C.sub,marginBottom:16}}>{new Date().toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                <div style={{background:C.greenLight,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,color:C.green,fontWeight:700}}>출근</div>
+                  <div style={{fontSize:22,fontWeight:800,color:C.text}}>{todayRec?.clockIn||"--:--"}</div>
+                </div>
+                <div style={{background:C.primaryLight,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,color:C.primary,fontWeight:700}}>퇴근</div>
+                  <div style={{fontSize:22,fontWeight:800,color:C.text}}>{todayRec?.clockOut||"--:--"}</div>
+                </div>
+              </div>
+              {todayRec?.clockIn&&todayRec?.clockOut&&(
+                <div style={{textAlign:"center",fontSize:13,color:C.sub,marginBottom:12}}>근무시간 {calcHours(todayRec.clockIn,todayRec.clockOut)}</div>
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockIn} disabled={!!todayRec?.clockIn}
+                    style={{...btn(todayRec?.clockIn?"#e9ecef":C.green,todayRec?.clockIn?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockIn?"출근 완료 ✅":"출근하기 ✅"}</button>
+                  {todayRec?.clockIn&&!todayRec?.clockOut&&(
+                    <button onClick={cancelClockIn} style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>출근 취소 ↩️</button>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <button onClick={clockOut} disabled={!todayRec?.clockIn||!!todayRec?.clockOut}
+                    style={{...btn((!todayRec?.clockIn||todayRec?.clockOut)?"#e9ecef":C.accent,(!todayRec?.clockIn||todayRec?.clockOut)?C.sub:"#fff"),padding:"13px"}}>
+                    {todayRec?.clockOut?"퇴근 완료 👋":"퇴근하기 👋"}</button>
+                  {todayRec?.clockOut&&(
+                    <button onClick={cancelClockOut} style={{...btn(C.redLight,C.red),padding:"7px",fontSize:12}}>퇴근 취소 ↩️</button>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* 휴가 현황 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:12}}>휴가 현황</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div style={{background:C.bg,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:C.sub}}>사용</div>
+                  <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{usedLeave}일</div>
+                </div>
+                <div style={{background:C.bg,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:C.sub}}>무제한 ∞</div>
+                  <div style={{fontSize:20,fontWeight:800,color:C.primary}}>∞</div>
+                </div>
+              </div>
+            </div>
+            {/* 이번달 근무 기록 */}
+            <div style={{background:C.card,borderRadius:16,padding:20,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:12}}>이번달 근무 기록</div>
+              {monthRecs.length===0
+                ? <div style={{textAlign:"center",color:C.sub,fontSize:13,padding:"20px 0"}}>기록이 없어요</div>
+                : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[...monthRecs].reverse().map(r=>(
+                      <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bg,borderRadius:10,padding:"10px 14px"}}>
+                        <div style={{fontSize:13,fontWeight:600}}>{fmt(r.date)}</div>
+                        <div style={{fontSize:13,color:C.sub}}>{r.clockIn} → {r.clockOut||"근무중"}</div>
+                        <div style={{fontSize:12,color:C.primary}}>{calcHours(r.clockIn,r.clockOut)}</div>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          </div>
+        )}
         {tab==="leave" && (
           <div>
             {pendingLeaves.length>0 && (
@@ -825,6 +965,9 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
               })}
             </div>
           </div>
+        )}
+        {tab==="calendar" && (
+          <CalendarView leaves={leaves} companyEvents={companyEvents} />
         )}
         {tab==="events" && <CompanyEventManager companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} showToast={showToast} />}
         {tab==="myleave" && (
