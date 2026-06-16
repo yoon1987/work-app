@@ -286,7 +286,7 @@ function CalendarView({ leaves, companyEvents }) {
                   background:isToday?C.primary:"none",color:isToday?"#fff":col===0?C.red:col===6?"#4dabf7":C.text,
                   borderRadius:isToday?"50%":0,display:"flex",alignItems:"center",justifyContent:"center",
                   fontWeight:isToday?800:400,marginBottom:2}}>{d}</div>
-                {lp.slice(0,2).map((l,idx) => <div key={idx} style={{fontSize:9,background:"#e7edff",color:C.primary,
+                {lp.slice(0,2).map((l,idx) => <div key={idx} style={{fontSize:9,background:"#fce4ec",color:C.primary,
                   borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{l.empName}</div>)}
                 {ev.slice(0,1).map((e,idx) => <div key={idx} style={{fontSize:9,background:e.color+"33",color:e.color,
                   borderRadius:3,padding:"1px 3px",fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{e.title}</div>)}
@@ -704,7 +704,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
-  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"},{k:"members",label:"👤 직원 관리"},{k:"myleave",label:"🏖️ 내 휴가"},{k:"report",label:"📊 근태 리포트"}];
+  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"},{k:"myleave",label:"🏖️ 내 휴가"},{k:"report",label:"📊 근태 리포트"}];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
@@ -833,58 +833,6 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
         {tab==="report" && (
           <AttendanceReport employees={employees} attendance={attendance} leaves={leaves} />
         )}
-        {tab==="members" && (
-          <div>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>직원 관리</div>
-            <div style={{fontSize:13,color:C.sub,marginBottom:16}}>휴가 일수를 수정할 수 있어요</div>
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {employees.map(emp => (
-                <div key={emp.id} style={{background:C.card,borderRadius:14,padding:"16px 18px",boxShadow:"0 1px 8px #0001"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontWeight:700,fontSize:15}}>{emp.name}</div>
-                    {emp.unlimited && <span style={{fontSize:12,background:C.primaryLight,color:C.primary,padding:"2px 10px",borderRadius:20,fontWeight:700}}>무제한</span>}
-                  </div>
-                  {!emp.unlimited && (
-                    <div style={{marginTop:12}}>
-                      <div style={{fontSize:12,color:C.sub,marginBottom:6}}>총 휴가 일수 (0.5일 단위)</div>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <button onClick={(e) => {
-                          e.stopPropagation();
-                          const next = employees.map(em => em.id===emp.id ? {...em, totalLeave: Math.max(0, Math.round((em.totalLeave-0.5)*10)/10)} : em);
-                          setEmployees(next); saveState("employees", next);
-                          showToast("저장됐어요!");
-                        }} style={{width:40,height:40,borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:C.text}}>−</button>
-                        <input type="number" value={emp.totalLeave} step="0.5" min="0"
-                          onChange={e => {
-                            const v = parseFloat(e.target.value)||0;
-                            const next = employees.map(em => em.id===emp.id ? {...em, totalLeave: Math.round(v*2)/2} : em);
-                            setEmployees(next); saveState("employees", next);
-                          }}
-                          onBlur={() => showToast("저장됐어요!")}
-                          style={{width:70,textAlign:"center",padding:"8px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:16,fontWeight:700,outline:"none"}} />
-                        <button onClick={(e) => {
-                          e.stopPropagation();
-                          const next = employees.map(em => em.id===emp.id ? {...em, totalLeave: Math.round((em.totalLeave+0.5)*10)/10} : em);
-                          setEmployees(next); saveState("employees", next);
-                          showToast("저장됐어요!");
-                        }} style={{width:40,height:40,borderRadius:10,border:"none",background:C.primary,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"#fff"}}>+</button>
-                        <span style={{fontSize:13,color:C.sub}}>일</span>
-                      </div>
-                      <div style={{fontSize:12,color:C.sub,marginTop:6}}>
-                        잔여: <strong style={{color:C.green}}>{Math.max(0, emp.totalLeave - calcUsedLeave(leaves, emp.id))}일</strong>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function App() {
   const [user, setUser] = useState(() => loadState("currentUser", null));
   const [employees, setEmployees] = useState(() => loadState('employees', INITIAL_EMPLOYEES));
