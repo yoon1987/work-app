@@ -835,10 +835,10 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
         )};
 
   const downloadCSV = () => {
-    const bom = "﻿";
-    const header = "이름,출근일수,근무시간(h),이달휴가,잔여휴가";
-    const rows = reportData.map(r=>r.name+","+r.workedDays+","+r.totalHours+","+r.monthUsed+","+(r.remain==="무제한"?"무제한":r.remain));
-    const csv = bom+header+"\n"+rows.join("\n");
+    const header = ["이름","출근일수","근무시간(h)","이달휴가","잔여휴가"].join(",");
+    const rows = reportData.map(r=>[r.name,r.workedDays,r.totalHours,r.monthUsed,(r.remain==="무제한"?"무제한":r.remain)].join(","));
+    const lines = [header].concat(rows);
+    const csv = "\uFEFF" + lines.join("\r\n");
     const blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
