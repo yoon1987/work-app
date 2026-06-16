@@ -29,7 +29,8 @@ const INITIAL_EMPLOYEES = [
   { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901" },
   { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410" },
   { id: 7, name: "김현지", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "941125" },
-  { id: 8, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031" },
+  { id: 8, name: "장은진", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "900129" },
+  { id: 0, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031" },
 ];
 
 const ADMIN = { id: 0, name: "최윤정", role: "admin", password: "871031" };
@@ -455,7 +456,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     return <span style={{fontSize:12,fontWeight:700,color,background:bg,padding:"3px 10px",borderRadius:20}}>{label}</span>;
   };
 
-  const TABS = [{k:"home",label:"🏠 홈"},{k:"apply",label:"✉️ 휴가신청"},{k:"leave",label:"📋 내 휴가"},{k:"calendar",label:"📅 팀 캘린더"}];
+  const TABS = [{k:"home",label:"🏠 홈"},{k:"apply",label:"✉️ 휴가신청"},{k:"leave",label:"📋 내 휴가"},{k:"calendar",label:"📅 팀 캘린더"},{k:"team",label:"👥 팀 출근"}];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
@@ -653,6 +654,39 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
           </div>
         )}
         {tab==="calendar" && <CalendarView leaves={leaves} companyEvents={companyEvents} />}
+        {tab==="team" && (
+          <div>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>팀 출근 현황</div>
+            <div style={{fontSize:13,color:C.sub,marginBottom:16}}>{new Date().toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"short"})} 기준</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {employees.map(emp => {
+                const rec = attendance.find(a => a.empId===emp.id && a.date===todayStr());
+                const onLeave = leaves.filter(l=>l.status==="approved").some(l=>l.empId===emp.id && l.startDate<=todayStr() && l.endDate>=todayStr());
+                return (
+                  <div key={emp.id} style={{background:C.card,borderRadius:12,padding:"14px 16px",
+                    display:"flex",justifyContent:"space-between",alignItems:"center",
+                    boxShadow:"0 1px 6px #0001",
+                    borderLeft:`4px solid ${onLeave?C.yellow:rec?.clockIn?C.green:C.border}`}}>
+                    <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
+                    <div style={{textAlign:"right"}}>
+                      {onLeave ? (
+                        <span style={{fontSize:12,background:C.yellowLight,color:C.yellow,padding:"3px 10px",borderRadius:20,fontWeight:700}}>휴가중 🏖️</span>
+                      ) : rec?.clockIn ? (
+                        <div>
+                          <div style={{fontSize:13,color:C.green,fontWeight:700}}>출근 {rec.clockIn}</div>
+                          {rec.clockOut && <div style={{fontSize:11,color:C.sub}}>퇴근 {rec.clockOut}</div>}
+                          {!rec.clockOut && <div style={{fontSize:11,color:C.sub}}>근무중 🟢</div>}
+                        </div>
+                      ) : (
+                        <span style={{fontSize:12,color:C.sub}}>미출근</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
