@@ -117,7 +117,7 @@ async function dbLoad(table) {
     if (table === "leaves") return { id: r.id, empId: r.emp_id, empName: r.emp_name, startDate: r.start_date, endDate: r.end_date, reason: r.reason, leaveType: r.leave_type, halfType: r.half_type, status: r.status, appliedAt: r.applied_at, startHalf: r.start_half||false, endHalf: r.end_half||false };
     if (table === "company_events") return { id: r.id, title: r.title, type: r.type, startDate: r.start_date, endDate: r.end_date, color: r.color };
     if (table === "notices") return { id: r.id, title: r.title, content: r.content, author: r.author, createdAt: r.created_at };
-    if (table === "todos") return { id: r.id, empId: r.emp_id, empName: r.emp_name, content: r.content, done: r.done, shared: r.shared, createdAt: r.created_at };
+    if (table === "todos") return { id: r.id, empId: r.emp_id, empName: r.emp_name, content: r.content, done: r.done, shared: r.shared, sharedTeam: r.shared_team||null, createdAt: r.created_at };
     return r;
   });
 }
@@ -128,7 +128,7 @@ async function dbUpsert(table, item) {
   else if (table === "leaves") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, start_date: item.startDate, end_date: item.endDate, reason: item.reason, leave_type: item.leaveType, half_type: item.halfType, status: item.status, applied_at: item.appliedAt, start_half: item.startHalf||false, end_half: item.endHalf||false };
   else if (table === "company_events") row = { id: item.id, title: item.title, type: item.type, start_date: item.startDate, end_date: item.endDate, color: item.color };
   else if (table === "notices") row = { id: item.id, title: item.title, content: item.content, author: item.author, created_at: item.createdAt };
-  else if (table === "todos") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, content: item.content, done: item.done, shared: item.shared, created_at: item.createdAt };
+  else if (table === "todos") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, content: item.content, done: item.done, shared: item.shared, shared_team: item.sharedTeam||null, created_at: item.createdAt };
   const { error } = await sb.from(table).upsert(row, { onConflict: "id" });
   if (error) console.error("upsert error:", table, error);
 }
@@ -205,6 +205,7 @@ function LoginScreen({ employees, onLogin }) {
       <div style={{width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <img src="data:image/png;base64,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" alt="DYNA team" style={{width:180,borderRadius:12,marginBottom:16}} />
+          <p style={{margin:"0 0 12px",color:C.sub,fontSize:13}}>출퇴근 · 휴가 관리</p>
           <div style={{display:"flex",gap:6,justifyContent:"center"}}>
             {TEAMS.map(t=>(
               <span key={t.key} style={{background:t.color,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:"#fff"}}>{t.key}</span>
@@ -458,7 +459,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
   const todayRec = attendance.find(a => a.empId===user.id && a.date===todayStr());
   const usedLeave = calcUsedLeave(leaves, user.id);
-  const remainLeave = user.totalLeave - usedLeave;
+  const remainLeave = user.unlimited ? Infinity : (user.totalLeave||0) - usedLeave;
   const myLeaves = leaves.filter(l => l.empId===user.id).sort((a,b)=>b.id-a.id);
   const approvedLeaves = leaves.filter(l => l.status==="approved");
   const thisMonth = (() => {
@@ -548,15 +549,15 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
             <div style={{flex:1,overflowY:"auto",padding:"12px 0"}}>
               {TABS.map(t=>(
                 <button key={t.k} onClick={()=>{setTab(t.k);setMenuOpen(false);}}
-                  style={{width:"100%",padding:"14px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
-                    cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:tab===t.k?700:400,
+                  style={{width:"100%",padding:"12px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
+                    cursor:"pointer",textAlign:"left",fontSize:14,fontWeight:tab===t.k?700:400,
                     color:tab===t.k?C.primary:C.text,borderLeft:tab===t.k?`4px solid ${C.primary}`:"4px solid transparent"}}>
                   {t.label}
                 </button>
               ))}
             </div>
-            <div style={{padding:"16px 20px",borderTop:`1px solid ${C.border}`}}>
-              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"12px"}}>로그아웃</button>
+            <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
+              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"11px",fontSize:14}}>로그아웃</button>
             </div>
           </div>
           <div style={{flex:1,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)} />
@@ -935,18 +936,18 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
                 ))}
               </div>
             </div>
-            <div style={{flex:1,overflowY:"auto",padding:"12px 0"}}>
+            <div style={{flex:1,overflowY:"auto",padding:"8px 0"}}>
               {TABS.map(t=>(
                 <button key={t.k} onClick={()=>{setTab(t.k);setMenuOpen(false);}}
-                  style={{width:"100%",padding:"14px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
-                    cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:tab===t.k?700:400,
+                  style={{width:"100%",padding:"11px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
+                    cursor:"pointer",textAlign:"left",fontSize:14,fontWeight:tab===t.k?700:400,
                     color:tab===t.k?C.primary:C.text,borderLeft:tab===t.k?`4px solid ${C.primary}`:"4px solid transparent"}}>
                   {t.label}
                 </button>
               ))}
             </div>
-            <div style={{padding:"16px 20px",borderTop:`1px solid ${C.border}`}}>
-              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"12px"}}>로그아웃</button>
+            <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
+              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"11px",fontSize:14}}>로그아웃</button>
             </div>
           </div>
           <div style={{flex:1,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)} />
@@ -1257,16 +1258,31 @@ function NoticeBoard({ notices, setNotices, isAdmin, showToast }) {
 // ── 할일 목록 ───────────────────────────────────────────
 function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
   const [content, setContent] = useState("");
-  const [shared, setShared] = useState(false);
-  const [filter, setFilter] = useState("my"); // my | shared | all(admin)
+  const [shareTarget, setShareTarget] = useState("none"); // none | all | urvs | everi | marketing
+  const [filter, setFilter] = useState("my");
 
-  const myTodos = (todos||[]).filter(t=>t.empId===user.id && !t.shared);
-  const sharedTodos = (todos||[]).filter(t=>t.shared);
-  const allTodos = todos||[];
+  const TEAMS = ["all","urvs","everi","marketing"];
+  const TEAM_LABELS = {none:"나만보기", all:"전체공유", urvs:"urvs팀", everi:"everi팀", marketing:"마케팅팀"};
+  const TEAM_COLORS = {all:C.primary, urvs:"#5c4a35", everi:"#8b7355", marketing:"#c4956a"};
+
+  const userTeam = user.team || null;
+
+  const visibleTodos = (todos||[]).filter(t => {
+    if (t.empId === user.id) return true; // 내꺼
+    if (!t.shared) return false;
+    if (t.sharedTeam === "all") return true; // 전체공유
+    if (t.sharedTeam === userTeam) return true; // 같은팀
+    if (isAdmin) return true; // 관리자는 다 봄
+    return false;
+  });
+
+  const myTodos = visibleTodos.filter(t => t.empId===user.id && !t.shared);
+  const sharedTodos = visibleTodos.filter(t => t.shared);
 
   const addTodo = async () => {
     if (!content.trim()) return;
-    const rec = { id:Date.now(), empId:user.id, empName:user.name, content, done:false, shared, createdAt:todayStr() };
+    const isShared = shareTarget !== "none";
+    const rec = { id:Date.now(), empId:user.id, empName:user.name, content, done:false, shared:isShared, sharedTeam:isShared?shareTarget:null, createdAt:todayStr() };
     await dbUpsert("todos", rec);
     setTodos(prev=>[...prev,rec]);
     setContent("");
@@ -1284,28 +1300,36 @@ function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
     showToast("🗑 삭제됐어요.");
   };
 
-  const displayTodos = filter==="my" ? myTodos : filter==="shared" ? sharedTodos : allTodos;
+  const filterOptions = isAdmin
+    ? [["my","내 할일"],["shared","공유됨"],["all","전체"]]
+    : [["my","내 할일"],["shared","공유됨"]];
+
+  const displayTodos = filter==="my" ? myTodos : filter==="shared" ? sharedTodos : visibleTodos;
 
   return (
     <div>
-      {/* 추가 폼 */}
       <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
-        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📋 할일 추가</div>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>할일 추가</div>
         <input value={content} onChange={e=>setContent(e.target.value)}
           onKeyDown={e=>e.key==="Enter"&&addTodo()}
           placeholder="할일을 입력하세요"
-          style={{display:"block",width:"100%",marginBottom:10,padding:"11px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,boxSizing:"border-box",outline:"none"}} />
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-          <input type="checkbox" id="shared" checked={shared} onChange={e=>setShared(e.target.checked)}
-            style={{width:16,height:16,cursor:"pointer"}} />
-          <label htmlFor="shared" style={{fontSize:13,color:C.sub,cursor:"pointer"}}>👥 팀 전체에 공유</label>
+          style={{display:"block",width:"100%",marginBottom:12,padding:"11px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,boxSizing:"border-box",outline:"none"}} />
+        <div style={{fontSize:12,color:C.sub,fontWeight:700,marginBottom:8}}>공유 범위</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+          {(["none","all",...TEAMS.filter(t=>t!=="all")]).map(k=>(
+            <button key={k} onClick={()=>setShareTarget(k)}
+              style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:shareTarget===k?700:400,
+                background:shareTarget===k?(k==="none"?C.bg:TEAM_COLORS[k]||C.primary):"#f0ebe3",
+                color:shareTarget===k?(k==="none"?C.text:"#fff"):C.sub}}>
+              {TEAM_LABELS[k]}
+            </button>
+          ))}
         </div>
         <button onClick={addTodo} style={{...btn(C.primary),width:"100%",padding:"12px"}}>추가하기 +</button>
       </div>
 
-      {/* 필터 */}
-      <div style={{display:"flex",gap:8,marginBottom:14}}>
-        {(isAdmin?[["my","내 할일"],["shared","팀 공유"],["all","전체"]]:[ ["my","내 할일"],["shared","팀 공유"]]).map(([k,l])=>(
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        {filterOptions.map(([k,l])=>(
           <button key={k} onClick={()=>setFilter(k)}
             style={{padding:"7px 16px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:filter===k?700:400,
               background:filter===k?C.primary:C.card,color:filter===k?"#fff":C.sub}}>
@@ -1314,11 +1338,10 @@ function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
         ))}
       </div>
 
-      {/* 할일 목록 */}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {displayTodos.length===0
           ? <div style={{background:C.card,borderRadius:14,padding:32,textAlign:"center",color:C.sub}}>할일이 없어요 🎉</div>
-          : displayTodos.sort((a,b)=>a.done-b.done).map(t=>(
+          : [...displayTodos].sort((a,b)=>a.done-b.done).map(t=>(
             <div key={t.id} style={{background:C.card,borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 6px #0001",
               display:"flex",alignItems:"center",gap:12,opacity:t.done?0.6:1}}>
               <div onClick={()=>toggleDone(t)} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(t.done?C.green:C.border),
@@ -1327,7 +1350,14 @@ function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
               </div>
               <div style={{flex:1}}>
                 <div style={{fontSize:14,fontWeight:600,textDecoration:t.done?"line-through":"none",color:t.done?C.sub:C.text}}>{t.content}</div>
-                {(t.shared||filter==="all") && <div style={{fontSize:11,color:C.sub,marginTop:2}}>{t.empName} {t.shared?"· 팀공유":""}</div>}
+                <div style={{fontSize:11,color:C.sub,marginTop:2,display:"flex",alignItems:"center",gap:6}}>
+                  <span>{t.empName}</span>
+                  {t.shared && t.sharedTeam && (
+                    <span style={{background:TEAM_COLORS[t.sharedTeam]||C.primary,color:"#fff",borderRadius:20,padding:"1px 8px",fontSize:10,fontWeight:700}}>
+                      {TEAM_LABELS[t.sharedTeam]||t.sharedTeam}
+                    </span>
+                  )}
+                </div>
               </div>
               {(t.empId===user.id||isAdmin) && (
                 <button onClick={()=>deleteTodo(t.id)} style={{background:"none",border:"none",color:C.sub,cursor:"pointer",fontSize:16}}>✕</button>
@@ -1427,7 +1457,7 @@ function AdminLeaveManager({ leaves, setLeaves, showToast }) {
 
 function App() {
   const [user, setUser] = useState(()=>loadState("currentUser",null));
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES); // 항상 최신 데이터 사용
   const [attendance, setAttendance] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [companyEvents, setCompanyEvents] = useState([]);
