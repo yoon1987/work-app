@@ -22,14 +22,14 @@
 const { useState, useEffect } = React;
 
 const INITIAL_EMPLOYEES = [
-  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "921218" },
-  { id: 2, name: "남윤이", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "880429" },
-  { id: 3, name: "김초은", joinDate: "2024-01-01", totalLeave: 25, role: "직원", password: "920227" },
-  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 24, role: "직원", password: "900911" },
-  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901" },
-  { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410" },
-  { id: 7, name: "김현지", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "941125" },
-  { id: 9, name: "장은진", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "900129" },
+  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "921218", team: "urvs" },
+  { id: 2, name: "남윤이", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "880429", team: "everi" },
+  { id: 3, name: "김초은", joinDate: "2024-01-01", totalLeave: 25, role: "직원", password: "930227", team: "marketing" },
+  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 24, role: "직원", password: "900911", team: "urvs" },
+  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901", team: "everi" },
+  { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410", team: "marketing" },
+  { id: 7, name: "김현지", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "941125", team: "everi" },
+  { id: 9, name: "장은진", joinDate: "2024-01-01", totalLeave: 4, role: "직원", password: "900129", team: "urvs" },
 ];
 
 const ADMIN = { id: 8, name: "최윤정", role: "admin", password: "871031" };
@@ -116,6 +116,8 @@ async function dbLoad(table) {
     if (table === "attendance") return { id: r.id, empId: r.emp_id, date: r.date, clockIn: r.clock_in, clockOut: r.clock_out };
     if (table === "leaves") return { id: r.id, empId: r.emp_id, empName: r.emp_name, startDate: r.start_date, endDate: r.end_date, reason: r.reason, leaveType: r.leave_type, halfType: r.half_type, status: r.status, appliedAt: r.applied_at, startHalf: r.start_half||false, endHalf: r.end_half||false };
     if (table === "company_events") return { id: r.id, title: r.title, type: r.type, startDate: r.start_date, endDate: r.end_date, color: r.color };
+    if (table === "notices") return { id: r.id, title: r.title, content: r.content, author: r.author, createdAt: r.created_at };
+    if (table === "todos") return { id: r.id, empId: r.emp_id, empName: r.emp_name, content: r.content, done: r.done, shared: r.shared, createdAt: r.created_at };
     return r;
   });
 }
@@ -125,6 +127,8 @@ async function dbUpsert(table, item) {
   if (table === "attendance") row = { id: item.id, emp_id: item.empId, date: item.date, clock_in: item.clockIn, clock_out: item.clockOut };
   else if (table === "leaves") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, start_date: item.startDate, end_date: item.endDate, reason: item.reason, leave_type: item.leaveType, half_type: item.halfType, status: item.status, applied_at: item.appliedAt, start_half: item.startHalf||false, end_half: item.endHalf||false };
   else if (table === "company_events") row = { id: item.id, title: item.title, type: item.type, start_date: item.startDate, end_date: item.endDate, color: item.color };
+  else if (table === "notices") row = { id: item.id, title: item.title, content: item.content, author: item.author, created_at: item.createdAt };
+  else if (table === "todos") row = { id: item.id, emp_id: item.empId, emp_name: item.empName, content: item.content, done: item.done, shared: item.shared, created_at: item.createdAt };
   const { error } = await sb.from(table).upsert(row, { onConflict: "id" });
   if (error) console.error("upsert error:", table, error);
 }
@@ -170,50 +174,80 @@ function Toast({ msg }) {
 
 function LoginScreen({ employees, onLogin }) {
   const [mode, setMode] = useState("emp");
-  const [selectedEmp, setSelectedEmp] = useState(null);
+  const [nameInput, setNameInput] = useState("");
+  const [foundEmp, setFoundEmp] = useState(null);
   const [pw, setPw] = useState("");
   const [adminPw, setAdminPw] = useState("");
   const [err, setErr] = useState("");
 
-  const selectEmp = (emp) => { setSelectedEmp(emp); setPw(""); setErr(""); };
-  const loginEmp = () => { if (pw === selectedEmp.password) onLogin(selectedEmp); else setErr("생년월일이 맞지 않아요!"); };
-  const loginAdmin = () => { if (adminPw === ADMIN.password) onLogin(ADMIN); else setErr("비밀번호가 틀렸어요!"); };
+  const TEAMS = [
+    {key:"urvs",color:"#5c4a35"},
+    {key:"everi",color:"#8b7355"},
+    {key:"marketing",color:"#c4956a"},
+  ];
+
+  const searchEmp = () => {
+    const found = employees.find(e => e.name === nameInput.trim());
+    if (found) { setFoundEmp(found); setErr(""); setPw(""); }
+    else setErr("이름을 찾을 수 없어요!");
+  };
+  const loginEmp = () => {
+    if (pw === foundEmp.password) onLogin(foundEmp);
+    else setErr("생년월일이 맞지 않아요!");
+  };
+  const loginAdmin = () => {
+    if (adminPw === ADMIN.password) onLogin(ADMIN);
+    else setErr("비밀번호가 틀렸어요!");
+  };
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{width:"100%",maxWidth:400}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontSize:40,marginBottom:8}}>🏢</div>
-          <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.text}}>DYNA team</h1>
-          <p style={{margin:"6px 0 0",color:C.sub,fontSize:14}}>출퇴근 · 휴가 관리</p>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <img src="data:image/png;base64,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" alt="DYNA team" style={{width:180,borderRadius:12,marginBottom:16}} />
+          <div style={{display:"flex",gap:6,justifyContent:"center"}}>
+            {TEAMS.map(t=>(
+              <span key={t.key} style={{background:t.color,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:"#fff"}}>{t.key}</span>
+            ))}
+          </div>
         </div>
         <div style={{background:C.card,borderRadius:16,padding:24,boxShadow:"0 2px 16px #0001"}}>
           <div style={{display:"flex",marginBottom:20,background:C.bg,borderRadius:10,padding:4}}>
-            {["직원 로그인","관리자 로그인"].map((t,i) => (
-              <button key={i} onClick={() => { setMode(i===0?"emp":"admin"); setErr(""); setSelectedEmp(null); }}
+            {["직원 로그인","관리자 로그인"].map((t,i)=>(
+              <button key={i} onClick={()=>{setMode(i===0?"emp":"admin");setErr("");setFoundEmp(null);setNameInput("");}}
                 style={{flex:1,padding:"8px 0",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",
                   background:(i===0?mode==="emp":mode==="admin")?C.primary:"transparent",
                   color:(i===0?mode==="emp":mode==="admin")?"#fff":C.sub}}>{t}</button>
             ))}
           </div>
-          {mode === "emp" ? (
-            !selectedEmp ? (
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <p style={{margin:"0 0 8px",fontSize:13,color:C.sub}}>이름을 선택하세요</p>
-                {employees.map(emp => (
-                  <button key={emp.id} onClick={() => selectEmp(emp)}
-                    style={{...btn(C.primaryLight,C.primary),textAlign:"left",fontSize:15}}>{emp.name}</button>
-                ))}
+          {mode==="emp" ? (
+            !foundEmp ? (
+              <div>
+                <p style={{margin:"0 0 12px",fontSize:13,color:C.sub}}>이름을 입력해주세요</p>
+                <input value={nameInput} onChange={e=>{setNameInput(e.target.value);setErr("");}}
+                  onKeyDown={e=>e.key==="Enter"&&searchEmp()}
+                  placeholder="예: 김초은"
+                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.border,
+                    fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:8}} />
+                {err && <p style={{color:C.red,fontSize:13,margin:"0 0 8px"}}>{err}</p>}
+                <button onClick={searchEmp} style={{...btn(C.primary),width:"100%",padding:"13px"}}>다음 →</button>
               </div>
             ) : (
               <div>
-                <button onClick={() => { setSelectedEmp(null); setErr(""); }}
-                  style={{...btn("none",C.sub),padding:"0 0 12px",fontSize:13}}>← 다시 선택</button>
-                <p style={{margin:"0 0 6px",fontSize:16,fontWeight:800,color:C.text}}>{selectedEmp.name}님</p>
-                <p style={{margin:"0 0 12px",fontSize:13,color:C.sub}}>생년월일 6자리를 입력하세요 (예: 901215)</p>
-                <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(""); }}
-                  onKeyDown={e => e.key==="Enter" && loginEmp()} placeholder="생년월일 6자리"
-                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,
+                <button onClick={()=>{setFoundEmp(null);setNameInput("");setErr("");}}
+                  style={{background:"none",border:"none",color:C.sub,cursor:"pointer",fontSize:13,padding:"0 0 12px",display:"block"}}>
+                  ← 다시 입력
+                </button>
+                <div style={{background:C.primaryLight,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+                  <div style={{fontWeight:800,fontSize:16,color:C.primary}}>{foundEmp.name}님 👋</div>
+                  {foundEmp.team && <div style={{fontSize:12,color:C.sub,marginTop:4}}>
+                    <span style={{background:TEAMS.find(t=>t.key===foundEmp.team)?.color||C.primary,color:"#fff",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700}}>{foundEmp.team}</span>
+                  </div>}
+                </div>
+                <p style={{margin:"0 0 12px",fontSize:13,color:C.sub}}>생년월일 6자리 입력 (예: 901215)</p>
+                <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr("");}}
+                  onKeyDown={e=>e.key==="Enter"&&loginEmp()} placeholder="생년월일 6자리"
+                  style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.border,
                     fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:8}} />
                 {err && <p style={{color:C.red,fontSize:13,margin:"0 0 8px"}}>{err}</p>}
                 <button onClick={loginEmp} style={{...btn(C.primary),width:"100%",padding:"13px"}}>로그인</button>
@@ -222,12 +256,12 @@ function LoginScreen({ employees, onLogin }) {
           ) : (
             <div>
               <p style={{margin:"0 0 12px",fontSize:13,color:C.sub}}>관리자 비밀번호</p>
-              <input type="password" value={adminPw} onChange={e => { setAdminPw(e.target.value); setErr(""); }}
-                onKeyDown={e => e.key==="Enter" && loginAdmin()} placeholder="비밀번호 입력"
-                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,
+              <input type="password" value={adminPw} onChange={e=>{setAdminPw(e.target.value);setErr("");}}
+                onKeyDown={e=>e.key==="Enter"&&loginAdmin()} placeholder="비밀번호 입력"
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid "+C.border,
                   fontSize:15,boxSizing:"border-box",outline:"none",marginBottom:8}} />
               {err && <p style={{color:C.red,fontSize:13,margin:"0 0 8px"}}>{err}</p>}
-              <button onClick={loginAdmin} style={{...btn(C.primary),width:"100%"}}>로그인</button>
+              <button onClick={loginAdmin} style={{...btn(C.primary),width:"100%",padding:"13px"}}>로그인</button>
             </div>
           )}
         </div>
@@ -417,7 +451,7 @@ function CompanyEventManager({ companyEvents, setCompanyEvents, showToast }) {
   );
 }
 
-function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, setLeaves, companyEvents, onLogout }) {
+function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, setLeaves, companyEvents, notices, todos, setTodos, onLogout }) {
   const [tab, setTab] = useState("home");
   const [leaveForm, setLeaveForm] = useState({ startDate:todayStr(), endDate:todayStr(), reason:"", leaveType:"연차", halfType:"오전", startHalf:false, startHalfType:"오전", endHalf:false, endHalfType:"오후" });
   const [toast, setToast] = useState("");
@@ -496,28 +530,48 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     return <span style={{fontSize:12,fontWeight:700,color,background:bg,padding:"3px 10px",borderRadius:20}}>{label}</span>;
   };
 
-  const TABS = [{k:"home",label:"🏠 홈"},{k:"apply",label:"✉️ 휴가신청"},{k:"leave",label:"📋 내 휴가"},{k:"calendar",label:"📅 팀 캘린더"},{k:"team",label:"👥 팀 출근"}];
+  const TABS = [{k:"home",label:"홈"},{k:"apply",label:"휴가신청"},{k:"leave",label:"내 휴가"},{k:"calendar",label:"팀 캘린더"},{k:"team",label:"팀 출근"},{k:"notice",label:"공지사항"},{k:"todo",label:"할일"}];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const currentTab = TABS.find(t=>t.k===tab)||TABS[0];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
       <Toast msg={toast} />
-      <div style={{background:C.primary,padding:"20px 20px 16px",color:"#fff"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{fontSize:12,opacity:0.8}}>안녕하세요 👋</div>
-            <div style={{fontSize:20,fontWeight:800}}>{user.name}님</div>
+      {/* 사이드 드로어 */}
+      {menuOpen && (
+        <div style={{position:"fixed",inset:0,zIndex:100,display:"flex"}}>
+          <div style={{width:260,background:C.card,height:"100%",boxShadow:"4px 0 20px #0003",display:"flex",flexDirection:"column"}}>
+            <div style={{background:C.primary,padding:"28px 20px 20px",color:"#fff"}}>
+              <div style={{fontSize:12,opacity:0.8,marginBottom:4}}>안녕하세요 👋</div>
+              <div style={{fontSize:20,fontWeight:800}}>{user.name}님</div>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"12px 0"}}>
+              {TABS.map(t=>(
+                <button key={t.k} onClick={()=>{setTab(t.k);setMenuOpen(false);}}
+                  style={{width:"100%",padding:"14px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
+                    cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:tab===t.k?700:400,
+                    color:tab===t.k?C.primary:C.text,borderLeft:tab===t.k?`4px solid ${C.primary}`:"4px solid transparent"}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div style={{padding:"16px 20px",borderTop:`1px solid ${C.border}`}}>
+              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"12px"}}>로그아웃</button>
+            </div>
           </div>
-          <button onClick={onLogout} style={{...btn("rgba(255,255,255,0.2)","#fff"),fontSize:12,padding:"6px 14px"}}>로그아웃</button>
+          <div style={{flex:1,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)} />
         </div>
-      </div>
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,display:"flex",overflowX:"auto"}}>
-        {TABS.map(t => <button key={t.k} onClick={()=>setTab(t.k)}
-          style={{flex:1,padding:"12px 8px",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",
-            color:tab===t.k?C.primary:C.sub,borderBottom:tab===t.k?`2px solid ${C.primary}`:"2px solid transparent"}}>{t.label}</button>)}
+      )}
+      {/* 헤더 */}
+      <div style={{background:C.primary,padding:"16px 20px",color:"#fff",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50}}>
+        <button onClick={()=>setMenuOpen(true)} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer",padding:"4px",lineHeight:1}}>☰</button>
+        <div style={{flex:1,fontSize:16,fontWeight:800}}>{currentTab.label}</div>
+        <div style={{fontSize:13,opacity:0.8}}>{user.name}님</div>
       </div>
       <div style={{padding:16,maxWidth:500,margin:"0 auto"}}>
         {tab==="home" && (
           <div>
+            <BirthdayBanner employees={employees} />
             <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
               <div style={{fontSize:13,color:C.sub,marginBottom:4}}>오늘 출퇴근</div>
               <div style={{fontSize:12,color:C.sub,marginBottom:16}}>{new Date().toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}</div>
@@ -764,6 +818,8 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
           </div>
         )}
         {tab==="calendar" && <CalendarView leaves={leaves} companyEvents={companyEvents} />}
+        {tab==="notice" && <NoticeBoard notices={notices} isAdmin={false} />}
+        {tab==="todo" && <TodoBoard user={user} todos={todos} setTodos={setTodos} showToast={showToast} isAdmin={false} />}
         {tab==="team" && (
           <div>
             <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>팀 출근 현황</div>
@@ -802,7 +858,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
   );
 }
 
-function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, companyEvents, setCompanyEvents, onLogout }) {
+function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, companyEvents, setCompanyEvents, notices, setNotices, todos, setTodos, onLogout }) {
   const [tab, setTab] = useState("leave");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
@@ -855,33 +911,53 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
-  const TABS = [{k:"home",label:"🏠 내 홈"},{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"calendar",label:"📅 팀 캘린더"},{k:"events",label:"📌 회사 일정"},{k:"myleave",label:"🏖️ 내 휴가"}];
+  const TABS = [{k:"home",label:"내 홈"},{k:"leave",label:"휴가 승인"},{k:"status",label:"직원 현황"},{k:"attend",label:"출퇴근"},{k:"calendar",label:"팀 캘린더"},{k:"events",label:"회사 일정"},{k:"myleave",label:"내 휴가"},{k:"notice",label:"공지사항"},{k:"todo",label:"할일"}];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const currentTab = TABS.find(t=>t.k===tab)||TABS[0];
 
   return (
     <div style={{minHeight:"100vh",background:C.bg}}>
       <Toast msg={toast} />
-      <div style={{background:"#5c4a35",padding:"20px 20px 16px",color:"#fff"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{fontSize:12,opacity:0.7}}>관리자 모드 👑</div>
-            <div style={{fontSize:20,fontWeight:800}}>최윤정 사장님</div>
-          </div>
-          <button onClick={onLogout} style={{...btn("rgba(255,255,255,0.15)","#fff"),fontSize:12,padding:"6px 14px"}}>로그아웃</button>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:16}}>
-          {[["전체 직원",employees.length+"명","👥"],["오늘 휴가",onLeaveToday.length+"명","🏖️"],["대기 승인",pendingLeaves.length+"건","⏳"]].map(([l,v,ic]) => (
-            <div key={l} style={{background:"rgba(255,255,255,0.12)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
-              <div style={{fontSize:18}}>{ic}</div>
-              <div style={{fontSize:18,fontWeight:800}}>{v}</div>
-              <div style={{fontSize:11,opacity:0.7}}>{l}</div>
+      {/* 사이드 드로어 */}
+      {menuOpen && (
+        <div style={{position:"fixed",inset:0,zIndex:100,display:"flex"}}>
+          <div style={{width:260,background:C.card,height:"100%",boxShadow:"4px 0 20px #0003",display:"flex",flexDirection:"column"}}>
+            <div style={{background:"#5c4a35",padding:"28px 20px 20px",color:"#fff"}}>
+              <div style={{fontSize:12,opacity:0.7,marginBottom:4}}>관리자 모드 👑</div>
+              <div style={{fontSize:20,fontWeight:800}}>최윤정 사장님</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14}}>
+                {[["직원",employees.length+"명","👥"],["휴가",onLeaveToday.length+"명","🏖️"],["승인",pendingLeaves.length+"건","⏳"]].map(([l,v,ic])=>(
+                  <div key={l} style={{background:"rgba(255,255,255,0.15)",borderRadius:10,padding:"8px 4px",textAlign:"center"}}>
+                    <div style={{fontSize:14}}>{ic}</div>
+                    <div style={{fontSize:14,fontWeight:800}}>{v}</div>
+                    <div style={{fontSize:10,opacity:0.7}}>{l}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+            <div style={{flex:1,overflowY:"auto",padding:"12px 0"}}>
+              {TABS.map(t=>(
+                <button key={t.k} onClick={()=>{setTab(t.k);setMenuOpen(false);}}
+                  style={{width:"100%",padding:"14px 20px",border:"none",background:tab===t.k?C.primaryLight:"none",
+                    cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:tab===t.k?700:400,
+                    color:tab===t.k?C.primary:C.text,borderLeft:tab===t.k?`4px solid ${C.primary}`:"4px solid transparent"}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div style={{padding:"16px 20px",borderTop:`1px solid ${C.border}`}}>
+              <button onClick={onLogout} style={{...btn(C.redLight,C.red),width:"100%",padding:"12px"}}>로그아웃</button>
+            </div>
+          </div>
+          <div style={{flex:1,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)} />
         </div>
-      </div>
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,display:"flex",overflowX:"auto"}}>
-        {TABS.map(t => <button key={t.k} onClick={()=>setTab(t.k)}
-          style={{flex:1,padding:"12px 8px",border:"none",background:"none",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",
-            color:tab===t.k?C.primary:C.sub,borderBottom:tab===t.k?`2px solid ${C.primary}`:"2px solid transparent"}}>{t.label}</button>)}
+      )}
+      {/* 헤더 */}
+      <div style={{background:"#5c4a35",padding:"16px 20px",color:"#fff",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50}}>
+        <button onClick={()=>setMenuOpen(true)} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer",padding:"4px",lineHeight:1}}>☰</button>
+        <div style={{flex:1,fontSize:16,fontWeight:800}}>{currentTab.label}</div>
+        {pendingLeaves.length>0 && <div style={{background:C.red,color:"#fff",borderRadius:20,fontSize:11,fontWeight:700,padding:"2px 8px"}}>{pendingLeaves.length}</div>}
+        <div style={{fontSize:12,opacity:0.8}}>👑</div>
       </div>
       <div style={{padding:16,maxWidth:600,margin:"0 auto"}}>
         {tab==="home" && (
@@ -1051,9 +1127,214 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
           <CalendarView leaves={leaves} companyEvents={companyEvents} />
         )}
         {tab==="events" && <CompanyEventManager companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} showToast={showToast} />}
+        {tab==="notice" && <NoticeBoard notices={notices} setNotices={setNotices} isAdmin={true} showToast={showToast} />}
+        {tab==="todo" && <TodoBoard user={{id:77,name:"최윤정"}} todos={todos} setTodos={setTodos} showToast={showToast} isAdmin={true} employees={employees} />}
         {tab==="myleave" && (
           <AdminLeaveManager leaves={leaves} setLeaves={setLeaves} showToast={showToast} />
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── 생일 유틸 ──────────────────────────────────────────
+function getBirthday(password) {
+  if (!password || password.length !== 6) return null;
+  const mm = parseInt(password.slice(2,4));
+  const dd = parseInt(password.slice(4,6));
+  return { mm, dd };
+}
+
+function BirthdayBanner({ employees }) {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9*60*60*1000);
+  const mm = kst.getMonth()+1;
+  const dd = kst.getDate();
+  const todayBdays = employees.filter(e => {
+    const b = getBirthday(e.password);
+    return b && b.mm===mm && b.dd===dd;
+  });
+  const monthBdays = employees.filter(e => {
+    const b = getBirthday(e.password);
+    return b && b.mm===mm && b.dd!==dd;
+  }).sort((a,b)=>{
+    const ba=getBirthday(a.password), bb=getBirthday(b.password);
+    return ba.dd - bb.dd;
+  });
+  if (todayBdays.length===0 && monthBdays.length===0) return null;
+  return (
+    <div style={{marginBottom:16}}>
+      {todayBdays.length>0 && (
+        <div style={{background:"linear-gradient(135deg,#ff6b9d,#ffa07a)",borderRadius:16,padding:"16px 20px",marginBottom:10,boxShadow:"0 2px 12px #ff6b9d44"}}>
+          <div style={{fontSize:20,marginBottom:6}}>🎂</div>
+          <div style={{fontWeight:800,fontSize:16,color:"#fff",marginBottom:4}}>오늘의 생일!</div>
+          <div style={{color:"#fff",fontSize:15}}>{todayBdays.map(e=>e.name).join(", ")}님 생일을 축하해요! 🎉</div>
+        </div>
+      )}
+      {monthBdays.length>0 && (
+        <div style={{background:C.card,borderRadius:14,padding:"14px 18px",boxShadow:"0 1px 8px #0001"}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.sub,marginBottom:10}}>🎂 이번달 생일</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {monthBdays.map(e=>{
+              const b=getBirthday(e.password);
+              return (
+                <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{fontSize:14,fontWeight:600}}>{e.name}</div>
+                  <div style={{fontSize:13,color:C.sub}}>{b.mm}월 {b.dd}일 🎂</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 공지사항 ────────────────────────────────────────────
+function NoticeBoard({ notices, setNotices, isAdmin, showToast }) {
+  const [form, setForm] = useState({ title:"", content:"" });
+  const [expanded, setExpanded] = useState(null);
+  const sorted = [...(notices||[])].sort((a,b)=>b.id-a.id);
+
+  const addNotice = async () => {
+    if (!form.title.trim()) return;
+    const rec = { id:Date.now(), title:form.title, content:form.content, author:"최윤정", createdAt:todayStr() };
+    await dbUpsert("notices", rec);
+    if (setNotices) setNotices(prev=>[...prev,rec]);
+    setForm({ title:"", content:"" });
+    showToast && showToast("📢 공지가 등록됐어요!");
+  };
+
+  const deleteNotice = async (id) => {
+    await dbDelete("notices", id);
+    if (setNotices) setNotices(prev=>prev.filter(n=>n.id!==id));
+    showToast && showToast("🗑 삭제됐어요.");
+  };
+
+  return (
+    <div>
+      {isAdmin && (
+        <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📢 공지 작성</div>
+          <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="제목"
+            style={{display:"block",width:"100%",marginBottom:10,padding:"11px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,boxSizing:"border-box",outline:"none"}} />
+          <textarea value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="내용 (선택)"
+            style={{display:"block",width:"100%",marginBottom:12,padding:"11px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,boxSizing:"border-box",resize:"none",height:80,fontFamily:"inherit",outline:"none"}} />
+          <button onClick={addNotice} style={{...btn(C.primary),width:"100%",padding:"12px"}}>등록하기 →</button>
+        </div>
+      )}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {sorted.length===0
+          ? <div style={{background:C.card,borderRadius:14,padding:32,textAlign:"center",color:C.sub}}>공지사항이 없어요</div>
+          : sorted.map(n=>(
+            <div key={n.id} style={{background:C.card,borderRadius:14,padding:"16px 18px",boxShadow:"0 1px 8px #0001",cursor:"pointer"}}
+              onClick={()=>setExpanded(expanded===n.id?null:n.id)}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{n.title}</div>
+                  <div style={{fontSize:12,color:C.sub}}>{n.author} · {fmt(n.createdAt)}</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {isAdmin && <button onClick={e=>{e.stopPropagation();deleteNotice(n.id);}}
+                    style={{...btn(C.redLight,C.red),fontSize:11,padding:"4px 10px"}}>삭제</button>}
+                  <span style={{color:C.sub,fontSize:14}}>{expanded===n.id?"▲":"▼"}</span>
+                </div>
+              </div>
+              {expanded===n.id && n.content && (
+                <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+C.border,fontSize:14,color:C.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>
+                  {n.content}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── 할일 목록 ───────────────────────────────────────────
+function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
+  const [content, setContent] = useState("");
+  const [shared, setShared] = useState(false);
+  const [filter, setFilter] = useState("my"); // my | shared | all(admin)
+
+  const myTodos = (todos||[]).filter(t=>t.empId===user.id && !t.shared);
+  const sharedTodos = (todos||[]).filter(t=>t.shared);
+  const allTodos = todos||[];
+
+  const addTodo = async () => {
+    if (!content.trim()) return;
+    const rec = { id:Date.now(), empId:user.id, empName:user.name, content, done:false, shared, createdAt:todayStr() };
+    await dbUpsert("todos", rec);
+    setTodos(prev=>[...prev,rec]);
+    setContent("");
+    showToast("✅ 할일이 추가됐어요!");
+  };
+
+  const toggleDone = async (todo) => {
+    await dbUpdate("todos", todo.id, { done: !todo.done });
+    setTodos(prev=>prev.map(t=>t.id===todo.id?{...t,done:!t.done}:t));
+  };
+
+  const deleteTodo = async (id) => {
+    await dbDelete("todos", id);
+    setTodos(prev=>prev.filter(t=>t.id!==id));
+    showToast("🗑 삭제됐어요.");
+  };
+
+  const displayTodos = filter==="my" ? myTodos : filter==="shared" ? sharedTodos : allTodos;
+
+  return (
+    <div>
+      {/* 추가 폼 */}
+      <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📋 할일 추가</div>
+        <input value={content} onChange={e=>setContent(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&addTodo()}
+          placeholder="할일을 입력하세요"
+          style={{display:"block",width:"100%",marginBottom:10,padding:"11px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,boxSizing:"border-box",outline:"none"}} />
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <input type="checkbox" id="shared" checked={shared} onChange={e=>setShared(e.target.checked)}
+            style={{width:16,height:16,cursor:"pointer"}} />
+          <label htmlFor="shared" style={{fontSize:13,color:C.sub,cursor:"pointer"}}>👥 팀 전체에 공유</label>
+        </div>
+        <button onClick={addTodo} style={{...btn(C.primary),width:"100%",padding:"12px"}}>추가하기 +</button>
+      </div>
+
+      {/* 필터 */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {(isAdmin?[["my","내 할일"],["shared","팀 공유"],["all","전체"]]:[ ["my","내 할일"],["shared","팀 공유"]]).map(([k,l])=>(
+          <button key={k} onClick={()=>setFilter(k)}
+            style={{padding:"7px 16px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:filter===k?700:400,
+              background:filter===k?C.primary:C.card,color:filter===k?"#fff":C.sub}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* 할일 목록 */}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {displayTodos.length===0
+          ? <div style={{background:C.card,borderRadius:14,padding:32,textAlign:"center",color:C.sub}}>할일이 없어요 🎉</div>
+          : displayTodos.sort((a,b)=>a.done-b.done).map(t=>(
+            <div key={t.id} style={{background:C.card,borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 6px #0001",
+              display:"flex",alignItems:"center",gap:12,opacity:t.done?0.6:1}}>
+              <div onClick={()=>toggleDone(t)} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(t.done?C.green:C.border),
+                background:t.done?C.green:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {t.done && <span style={{color:"#fff",fontSize:12}}>✓</span>}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:600,textDecoration:t.done?"line-through":"none",color:t.done?C.sub:C.text}}>{t.content}</div>
+                {(t.shared||filter==="all") && <div style={{fontSize:11,color:C.sub,marginTop:2}}>{t.empName} {t.shared?"· 팀공유":""}</div>}
+              </div>
+              {(t.empId===user.id||isAdmin) && (
+                <button onClick={()=>deleteTodo(t.id)} style={{background:"none",border:"none",color:C.sub,cursor:"pointer",fontSize:16}}>✕</button>
+              )}
+            </div>
+          ))
+        }
       </div>
     </div>
   );
@@ -1150,17 +1431,19 @@ function App() {
   const [attendance, setAttendance] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [companyEvents, setCompanyEvents] = useState([]);
+  const [notices, setNotices] = useState([]);
+  const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function fetchAll() {
-      const [att,lev,evt] = await Promise.all([dbLoad("attendance"),dbLoad("leaves"),dbLoad("company_events")]);
-      setAttendance(att); setLeaves(lev); setCompanyEvents(evt); setLoading(false);
+      const [att,lev,evt,ntc,tds] = await Promise.all([dbLoad("attendance"),dbLoad("leaves"),dbLoad("company_events"),dbLoad("notices"),dbLoad("todos")]);
+      setAttendance(att); setLeaves(lev); setCompanyEvents(evt); setNotices(ntc); setTodos(tds); setLoading(false);
     }
     fetchAll();
     const timer = setInterval(async()=>{
-      const [att,lev,evt] = await Promise.all([dbLoad("attendance"),dbLoad("leaves"),dbLoad("company_events")]);
-      setAttendance(att); setLeaves(lev); setCompanyEvents(evt);
+      const [att,lev,evt,ntc,tds] = await Promise.all([dbLoad("attendance"),dbLoad("leaves"),dbLoad("company_events"),dbLoad("notices"),dbLoad("todos")]);
+      setAttendance(att); setLeaves(lev); setCompanyEvents(evt); setNotices(ntc); setTodos(tds);
     },10000);
     return ()=>clearInterval(timer);
   },[]);
@@ -1177,8 +1460,8 @@ function App() {
   );
 
   if (!user) return <LoginScreen employees={employees} onLogin={login} />;
-  if (user.role==="admin") return <AdminScreen employees={employees} setEmployees={setEmployees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} onLogout={logout} />;
-  return <EmployeeScreen user={user} employees={employees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} onLogout={logout} />;
+  if (user.role==="admin") return <AdminScreen employees={employees} setEmployees={setEmployees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} notices={notices} setNotices={setNotices} todos={todos} setTodos={setTodos} onLogout={logout} />;
+  return <EmployeeScreen user={user} employees={employees} attendance={attendance} setAttendance={setAttendance} leaves={leaves} setLeaves={setLeaves} companyEvents={companyEvents} notices={notices} todos={todos} setTodos={setTodos} onLogout={logout} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
