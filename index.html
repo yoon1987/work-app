@@ -810,6 +810,46 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
   const approvedLeaves = leaves.filter(l => l.status==="approved");
   const tStr = todayStr();
   const onLeaveToday = approvedLeaves.filter(l => l.startDate<=tStr && l.endDate>=tStr);
+
+  // 관리자 본인 출퇴근
+  const ADMIN_ID = 77;
+  const todayRec = attendance.find(a => a.empId===ADMIN_ID && a.date===tStr);
+  const usedLeave = calcUsedLeave(leaves, ADMIN_ID);
+  const thisMonth = tStr.slice(0,7);
+  const monthRecs = [...attendance.filter(a=>a.empId===ADMIN_ID && a.date.startsWith(thisMonth))].reverse();
+  const calcHours = (ci,co) => {
+    if (!ci||!co) return "-";
+    const [h1,m1]=ci.split(":").map(Number),[h2,m2]=co.split(":").map(Number);
+    const mins=(h2*60+m2)-(h1*60+m1);
+    return Math.floor(mins/60)+"시간 "+mins%60+"분";
+  };
+  const clockIn = async () => {
+    if (todayRec?.clockIn) return;
+    const rec = { id:Date.now(), empId:ADMIN_ID, date:tStr, clockIn:nowTime(), clockOut:null };
+    await dbUpsert("attendance", rec);
+    setAttendance(prev => [...prev, rec]);
+    showToast("✅ 출근 완료!");
+  };
+  const cancelClockIn = async () => {
+    if (!todayRec || todayRec.clockOut) return;
+    await dbDelete("attendance", todayRec.id);
+    setAttendance(prev => prev.filter(a => a.id!==todayRec.id));
+    showToast("↩️ 출근 취소됐어요.");
+  };
+  const clockOut = async () => {
+    if (!todayRec?.clockIn||todayRec?.clockOut) return;
+    const t = nowTime();
+    await dbUpdate("attendance", todayRec.id, { clock_out: t });
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? {...a,clockOut:t} : a));
+    showToast("👋 퇴근 완료!");
+  };
+  const cancelClockOut = async () => {
+    if (!todayRec?.clockOut) return;
+    await dbUpdate("attendance", todayRec.id, { clock_out: null });
+    setAttendance(prev => prev.map(a => a.id===todayRec.id ? {...a,clockOut:null} : a));
+    showToast("↩️ 퇴근 취소됐어요.");
+  };
+
   const decide = async (id, status) => {
     await dbUpdate("leaves", id, { status });
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
