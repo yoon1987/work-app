@@ -22,12 +22,12 @@
 const { useState, useEffect } = React;
 
 const INITIAL_EMPLOYEES = [
-  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 30, role: "직원", password: "921218", team: "urvs" },
-  { id: 2, name: "남윤이", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "880429", team: "everi" },
-  { id: 3, name: "김초은", joinDate: "2024-01-01", totalLeave: 27, role: "직원", password: "930227", team: "marketing" },
-  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "900911", team: "urvs" },
-  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 30, role: "직원", password: "920901", team: "everi" },
-  { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 24.5, role: "직원", password: "910410", team: "marketing" },
+  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "921218", team: "urvs" },
+  { id: 2, name: "남윤이", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "880429", team: "everi" },
+  { id: 3, name: "김초은", joinDate: "2024-01-01", totalLeave: 25, role: "직원", password: "930227", team: "marketing" },
+  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 24, role: "직원", password: "900911", team: "urvs" },
+  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901", team: "everi" },
+  { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410", team: "marketing" },
   { id: 10, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031", team: "all" },
 ];
 
@@ -523,6 +523,11 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     setLeaves(prev => prev.filter(l => l.id!==id));
     showToast("🗑 신청이 취소됐어요.");
   };
+  const requestCancel = async (id) => {
+    await dbUpdate("leaves", id, { status: "cancel_requested" });
+    setLeaves(prev => prev.map(l => l.id===id ? {...l, status:"cancel_requested"} : l));
+    showToast("📋 취소 요청했어요! 관리자 확인 중이에요.");
+  };
 
   const statusBadge = (s) => {
     const map = { pending:["대기중",C.yellow,C.yellowLight], approved:["승인됨",C.green,C.greenLight], rejected:["반려됨",C.red,C.redLight] };
@@ -742,6 +747,9 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
                       {l.reason && <div style={{fontSize:13,color:C.sub}}>{l.reason}</div>}
                       {l.status==="pending" && <button onClick={()=>cancelLeave(l.id)}
                         style={{...btn(C.redLight,C.red),marginTop:10,fontSize:12,padding:"6px 14px"}}>취소하기</button>}
+                      {l.status==="approved" && <button onClick={()=>requestCancel(l.id)}
+                        style={{...btn(C.yellowLight,C.yellow),marginTop:10,fontSize:12,padding:"6px 14px",border:"1px solid "+C.yellow}}>취소 요청</button>}
+                      {l.status==="cancel_requested" && <div style={{marginTop:8,fontSize:12,color:C.accent,fontWeight:700}}>⏳ 취소 요청 중 (관리자 확인 대기)</div>}
                     </div>
                   ))}
                 </div>}
@@ -793,6 +801,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
   const pendingLeaves = leaves.filter(l => l.status==="pending").sort((a,b)=>b.id-a.id);
+  const cancelRequestedLeaves = leaves.filter(l => l.status==="cancel_requested").sort((a,b)=>b.id-a.id);
   const approvedLeaves = leaves.filter(l => l.status==="approved");
   const tStr = todayStr();
   const onLeaveToday = approvedLeaves.filter(l => l.startDate<=tStr && l.endDate>=tStr);
