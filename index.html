@@ -22,11 +22,11 @@
 const { useState, useEffect } = React;
 
 const INITIAL_EMPLOYEES = [
-  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "921218", team: "urvs" },
+  { id: 1, name: "허승희", joinDate: "2024-01-01", totalLeave: 29, role: "직원", password: "921218", team: "urvs" },
   { id: 2, name: "남윤이", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "880429", team: "everi" },
   { id: 3, name: "김초은", joinDate: "2024-01-01", totalLeave: 25, role: "직원", password: "930227", team: "marketing" },
-  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 24, role: "직원", password: "900911", team: "urvs" },
-  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 28, role: "직원", password: "920901", team: "everi" },
+  { id: 4, name: "송새롬", joinDate: "2024-01-01", totalLeave: 26, role: "직원", password: "900911", team: "urvs" },
+  { id: 5, name: "오은지", joinDate: "2024-01-01", totalLeave: 29, role: "직원", password: "920901", team: "everi" },
   { id: 6, name: "문슬기", joinDate: "2024-01-01", totalLeave: 22.5, role: "직원", password: "910410", team: "marketing" },
   { id: 10, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031", team: "all" },
   { id: 11, name: "김보배", joinDate: "2026-09-11", totalLeave: 40, role: "직원", password: "901124", team: "all" },
@@ -972,6 +972,34 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
         )}
         {tab==="leave" && (
           <div>
+            {cancelRequestedLeaves.length>0 && (
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:C.red}}>🔴 취소 요청 ({cancelRequestedLeaves.length}건)</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {cancelRequestedLeaves.map(l => (
+                    <div key={l.id} style={{background:C.card,borderRadius:16,padding:18,boxShadow:"0 1px 8px #0001",borderLeft:"4px solid "+C.red}}>
+                      <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{l.empName}</div>
+                      <div style={{fontSize:14,color:C.sub,marginBottom:4}}>
+                        {l.leaveType==="반차"?`${l.halfType||"오전"}반차 · ${fmt(l.startDate)}`:`${fmt(l.startDate)} ~ ${fmt(l.endDate)}`}
+                      </div>
+                      {l.reason && <div style={{fontSize:13,color:C.sub,marginBottom:10}}>사유: {l.reason}</div>}
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={async()=>{
+                          await dbDelete("leaves", l.id);
+                          setLeaves(prev=>prev.filter(x=>x.id!==l.id));
+                          showToast("✅ 취소 확정했어요!");
+                        }} style={{...btn(C.green),flex:1}}>취소 확정 ✅</button>
+                        <button onClick={async()=>{
+                          await dbUpdate("leaves", l.id, {status:"approved"});
+                          setLeaves(prev=>prev.map(x=>x.id===l.id?{...x,status:"approved"}:x));
+                          showToast("↩️ 취소 요청 거절했어요.");
+                        }} style={{...btn(C.redLight,C.red),flex:1}}>거절 ❌</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {pendingLeaves.length>0 && (
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:C.accent}}>⏳ 승인 대기 ({pendingLeaves.length}건)</div>
@@ -1284,6 +1312,100 @@ function TodoBoard({ user, todos, setTodos, showToast, isAdmin, employees }) {
             </div>
           ))
         }
+      </div>
+    </div>
+  );
+}
+
+function AdminAttendance({ employees, attendance, setAttendance, tStr, showToast }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editIn, setEditIn] = useState("");
+  const [editOut, setEditOut] = useState("");
+  const [viewDate, setViewDate] = useState(tStr);
+
+  const dayRecs = attendance.filter(a => a.date === viewDate);
+
+  const startEdit = (emp, rec) => {
+    setEditingId(emp.id);
+    setEditIn(rec?.clockIn || "");
+    setEditOut(rec?.clockOut || "");
+  };
+
+  const saveEdit = async (emp) => {
+    if (!editIn) { showToast("출근 시간을 입력해주세요!"); return; }
+    const existing = attendance.find(a => a.empId===emp.id && a.date===viewDate);
+    if (existing) {
+      await dbUpdate("attendance", existing.id, { clock_in: editIn, clock_out: editOut||null });
+      setAttendance(prev => prev.map(a => a.id===existing.id ? {...a, clockIn:editIn, clockOut:editOut||null} : a));
+    } else {
+      const rec = { id:Date.now(), empId:emp.id, date:viewDate, clockIn:editIn, clockOut:editOut||null };
+      await dbUpsert("attendance", rec);
+      setAttendance(prev => [...prev, rec]);
+    }
+    setEditingId(null);
+    showToast("✅ 수정됐어요!");
+  };
+
+  const deleteRec = async (rec) => {
+    await dbDelete("attendance", rec.id);
+    setAttendance(prev => prev.filter(a => a.id!==rec.id));
+    showToast("🗑 삭제됐어요.");
+  };
+
+  return (
+    <div>
+      <div style={{background:C.card,borderRadius:14,padding:"14px 16px",marginBottom:16,boxShadow:"0 1px 8px #0001",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.sub}}>날짜</div>
+        <input type="date" value={viewDate} onChange={e=>setViewDate(e.target.value)}
+          style={{flex:1,padding:"8px 12px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,outline:"none"}} />
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {employees.map(emp => {
+          const rec = dayRecs.find(a => a.empId===emp.id);
+          const isEditing = editingId===emp.id;
+          return (
+            <div key={emp.id} style={{background:C.card,borderRadius:14,padding:"16px",boxShadow:"0 1px 8px #0001"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isEditing?12:0}}>
+                <div style={{fontWeight:700,fontSize:15}}>{emp.name}</div>
+                {!isEditing && (
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{textAlign:"right"}}>
+                      {rec ? (
+                        <div>
+                          <div style={{fontSize:13,color:C.green,fontWeight:600}}>{rec.clockIn}{rec.clockOut?" → "+rec.clockOut:""}</div>
+                          <div style={{fontSize:11,color:C.sub}}>{rec.clockOut?"퇴근완료":"근무중 🟢"}</div>
+                        </div>
+                      ) : <span style={{fontSize:12,color:C.sub}}>미출근</span>}
+                    </div>
+                    <button onClick={()=>startEdit(emp,rec)}
+                      style={{...btn(C.primaryLight,C.primary),fontSize:12,padding:"6px 12px"}}>수정</button>
+                  </div>
+                )}
+              </div>
+              {isEditing && (
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div>
+                      <div style={{fontSize:12,color:C.sub,marginBottom:4}}>출근</div>
+                      <input type="time" value={editIn} onChange={e=>setEditIn(e.target.value)}
+                        style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.border,fontSize:15,boxSizing:"border-box",outline:"none"}} />
+                    </div>
+                    <div>
+                      <div style={{fontSize:12,color:C.sub,marginBottom:4}}>퇴근 (선택)</div>
+                      <input type="time" value={editOut} onChange={e=>setEditOut(e.target.value)}
+                        style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid "+C.border,fontSize:15,boxSizing:"border-box",outline:"none"}} />
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>saveEdit(emp)} style={{...btn(C.green),flex:2,padding:"11px"}}>저장 ✅</button>
+                    {rec && <button onClick={()=>{deleteRec(rec);setEditingId(null);}} style={{...btn(C.redLight,C.red),flex:1,padding:"11px",fontSize:13}}>삭제</button>}
+                    <button onClick={()=>setEditingId(null)} style={{...btn(C.bg,C.sub),flex:1,padding:"11px",fontSize:13}}>취소</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
