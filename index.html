@@ -293,7 +293,7 @@ function CalendarView({ leaves, companyEvents }) {
             <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>이번달 일정</div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {mHolidays.map(([d,name]) => <div key={d} style={{background:"#fff0f0",borderRadius:12,padding:"12px 16px",borderLeft:`4px solid ${C.red}`,boxShadow:"0 1px 6px #0001"}}>
-                <div style={{fontWeight:700,fontSize:14,color:C.red}}>🎌 {name}</div>
+                <div style={{fontWeight:700,fontSize:14,color:C.red}}>🗓 {name}</div>
                 <div style={{fontSize:12,color:C.sub}}>{fmt(d)} · 공휴일</div>
               </div>)}
               {mEvents.map(e => <div key={e.id} style={{background:C.card,borderRadius:12,padding:"12px 16px",borderLeft:`4px solid ${e.color}`,boxShadow:"0 1px 6px #0001"}}>
