@@ -30,7 +30,7 @@ const INITIAL_EMPLOYEES = [
   { id: 10, name: "최윤정", joinDate: "2024-01-01", totalLeave: 9999, unlimited: true, role: "직원", password: "871031", team: "all" },
   { id: 11, name: "김보배", joinDate: "2024-01-01", totalLeave: 40, role: "직원", password: "901124", team: "everi" },
   { id: 12, name: "김나현", joinDate: "2026-10-14", totalLeave: 40, role: "직원", password: "951212", team: "urvs" },
-  { id: 13, name: "이진희", joinDate: "2026-10-19", totalLeave: 40, role: "직원", password: "930816", team: "everi" },
+  { id: 13, name: "김진희", joinDate: "2026-10-19", totalLeave: 40, role: "직원", password: "930816", team: "everi" },
 ];
 
 const ADMIN = { id: 77, name: "최윤정", role: "admin", password: "871031" };
@@ -665,12 +665,12 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
     setLeaves(prev => prev.map(l => l.id===id ? {...l, status} : l));
     showToast(status==="approved"?"✅ 승인했어요!":"❌ 반려했어요.");
   };
-  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"}];
+  const TABS = [{k:"leave",label:"✉️ 휴가 승인"},{k:"status",label:"👥 직원 현황"},{k:"calendar",label:"📅 캘린더"},{k:"attend",label:"🕐 출퇴근"},{k:"events",label:"📌 회사 일정"}];
 
   return (
-    <div style={{minHeight:"100vh",background:C.bg}}>
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column"}}>
       <Toast msg={toast} />
-      <div style={{background:"#5c4a35",padding:"20px 20px 16px",color:"#fff"}}>
+      <div style={{background:"#5c4a35",padding:"16px 20px",color:"#fff"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontSize:12,opacity:0.7}}>관리자 모드 👑</div>
@@ -678,7 +678,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
           </div>
           <button onClick={onLogout} style={{...btn("rgba(255,255,255,0.15)","#fff"),fontSize:12,padding:"6px 14px"}}>로그아웃</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:14}}>
           {[["전체 직원",employees.length+"명","👥"],["오늘 휴가",onLeaveToday.length+"명","🏖️"],["대기 승인",pendingLeaves.length+"건","⏳"]].map(([l,v,ic]) => (
             <div key={l} style={{background:"rgba(255,255,255,0.12)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
               <div style={{fontSize:18}}>{ic}</div>
@@ -688,12 +688,19 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
           ))}
         </div>
       </div>
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,display:"flex",overflowX:"auto"}}>
-        {TABS.map(t => <button key={t.k} onClick={()=>setTab(t.k)}
-          style={{flex:1,padding:"12px 8px",border:"none",background:"none",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",
-            color:tab===t.k?C.primary:C.sub,borderBottom:tab===t.k?`2px solid ${C.primary}`:"2px solid transparent"}}>{t.label}</button>)}
-      </div>
-      <div style={{padding:16,maxWidth:600,margin:"0 auto"}}>
+      <div style={{display:"flex",flex:1}}>
+        <div style={{width:110,minWidth:110,background:C.card,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",paddingTop:8}}>
+          {TABS.map(t => (
+            <button key={t.k} onClick={()=>setTab(t.k)}
+              style={{border:"none",background:tab===t.k?"#f0ebff":"none",cursor:"pointer",padding:"14px 6px",
+                fontSize:10,fontWeight:700,color:tab===t.k?C.primary:C.sub,textAlign:"center",lineHeight:1.4,
+                borderLeft:tab===t.k?`3px solid ${C.primary}`:"3px solid transparent"}}>
+              {t.label.split(" ")[0]}<br/>{t.label.split(" ").slice(1).join(" ")}
+            </button>
+          ))}
+        </div>
+        <div style={{flex:1,padding:16,overflowY:"auto"}}>
+        <div style={{maxWidth:600,margin:"0 auto"}}>
         {tab==="leave" && (
           <div>
             {pendingLeaves.length>0 && (
@@ -787,7 +794,10 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
             </div>
           </div>
         )}
+        {tab==="calendar" && <CalendarView leaves={leaves} companyEvents={companyEvents} />}
         {tab==="events" && <CompanyEventManager companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} showToast={showToast} />}
+        </div>
+        </div>
       </div>
     </div>
   );
