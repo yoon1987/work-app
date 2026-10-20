@@ -266,6 +266,7 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
             const d = i+1; const s = ds(d);
             const lp = approvedLeaves.filter(l => l.startDate <= s && l.endDate >= s);
             const ev = (companyEvents||[]).filter(e => e.startDate <= s && e.endDate >= s);
+            const pev = (personalEvents||[]).filter(pe => pe.date <= s && (pe.endDate||pe.date) >= s);
             const isToday = s === tStr;
             const col = (firstDay+i)%7;
             const holidayName = HOLIDAY_MAP[s];
@@ -278,13 +279,12 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
                   borderRadius:isToday?"50%":0,display:"flex",alignItems:"center",justifyContent:"center",
                   fontWeight:isToday?800:400,marginBottom:1}}>{d}</div>
                 {holidayName && <div style={{fontSize:8,color:C.red,fontWeight:600,marginBottom:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{holidayName}</div>}
-                {lp.slice(0,2).map((l,idx) => <div key={idx} style={{fontSize:9,background:l.leaveType==="반차"?"#fff3cd":"#e7edff",color:l.leaveType==="반차"?"#b45309":C.primary,
+                {lp.map((l,idx) => <div key={idx} style={{fontSize:9,background:l.leaveType==="반차"?"#fff3cd":"#e7edff",color:l.leaveType==="반차"?"#b45309":C.primary,
                   borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{l.empName}{l.leaveType==="반차"?" ½":""}</div>)}
-                {ev.slice(0,1).map((e,idx) => <div key={idx} style={{fontSize:9,background:e.color+"33",color:e.color,
-                  borderRadius:3,padding:"1px 3px",fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{e.title}</div>)}
-                {(personalEvents||[]).filter(pe => pe.date <= s && (pe.endDate||pe.date) >= s).slice(0,1).map((pe,idx) =>
-                  <div key={"pe"+idx} style={{fontSize:9,background:"#f0fff4",color:"#2d8a4e",
-                    borderRadius:3,padding:"1px 3px",fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>📌{pe.title}</div>)}
+                {ev.map((e,idx) => <div key={idx} style={{fontSize:9,background:e.color+"33",color:e.color,
+                  borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{e.title}</div>)}
+                {pev.map((pe,idx) => <div key={"pe"+idx} style={{fontSize:9,background:"#f0fff4",color:"#2d8a4e",
+                  borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>📌{pe.title}</div>)}
               </div>
             );
           })}
