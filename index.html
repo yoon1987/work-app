@@ -228,7 +228,7 @@ function LoginScreen({ employees, onLogin }) {
   );
 }
 
-function CalendarView({ leaves, companyEvents, personalEvents }) {
+function CalendarView({ leaves, companyEvents, personalEvents, employees }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -272,7 +272,12 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
             const col = (firstDay+i)%7;
             const holidayName = HOLIDAY_MAP[s];
             const isRed = col===0 || !!holidayName;
-            const hasContent = holidayName || lp.length>0 || ev.length>0 || pev.length>0;
+            const bdayEmps = (employees||[]).filter(emp => {
+              const pw = emp.password||""; if(pw.length<6) return false;
+              const mm = pw.slice(2,4); const dd = pw.slice(4,6);
+              return mm === pad(month+1) && dd === pad(d);
+            });
+            const hasContent = holidayName || lp.length>0 || ev.length>0 || pev.length>0 || bdayEmps.length>0;
             return (
               <div key={d} onClick={()=>hasContent&&setSelectedDay(s)}
                 style={{minHeight:60,borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,
@@ -284,11 +289,13 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
                   fontWeight:isToday?800:400,marginBottom:1}}>{d}</div>
                 {holidayName && <div style={{fontSize:8,color:C.red,fontWeight:600,marginBottom:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{holidayName}</div>}
                 {lp.map((l,idx) => <div key={idx} style={{fontSize:9,background:l.leaveType==="반차"?"#fff3cd":"#e7edff",color:l.leaveType==="반차"?"#b45309":C.primary,
-                  borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{l.empName}{l.leaveType==="반차"?" ½":""}</div>)}
+                  borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{l.empName}{l.leaveType==="반차"?(l.halfType==="오후"?"오후":"오전"):""}</div>)}
                 {ev.map((e,idx) => <div key={idx} style={{fontSize:9,background:e.color+"33",color:e.color,
                   borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{e.title}</div>)}
                 {pev.map((pe,idx) => <div key={"pe"+idx} style={{fontSize:9,background:"#f0fff4",color:"#2d8a4e",
                   borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>📌{pe.title}</div>)}
+                {bdayEmps.map((emp,idx) => <div key={"bd"+idx} style={{fontSize:9,background:"#fff0f8",color:"#c2185b",
+                  borderRadius:3,padding:"1px 3px",marginBottom:1,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>🎂{emp.name}</div>)}
               </div>
             );
           })}
@@ -299,6 +306,8 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
         const sLeaves = approvedLeaves.filter(l => l.startDate <= selectedDay && l.endDate >= selectedDay);
         const sEvents = (companyEvents||[]).filter(e => e.startDate <= selectedDay && e.endDate >= selectedDay);
         const sPersonal = (personalEvents||[]).filter(pe => pe.date <= selectedDay && (pe.endDate||pe.date) >= selectedDay);
+        const [,sMM,sDD] = selectedDay.split("-");
+        const sBdays = (employees||[]).filter(emp => { const pw=emp.password||""; return pw.length>=6 && pw.slice(2,4)===sMM && pw.slice(4,6)===sDD; });
         return (
           <div style={{position:"fixed",inset:0,background:"#0005",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
             onClick={()=>setSelectedDay(null)}>
@@ -324,7 +333,11 @@ function CalendarView({ leaves, companyEvents, personalEvents }) {
                   <div style={{fontWeight:700,fontSize:14,color:"#2d8a4e"}}>📌 {pe.title}{pe.empName?` (${pe.empName})`:""}</div>
                   <div style={{fontSize:12,color:C.sub}}>개인일정</div>
                 </div>)}
-                {!sHoliday && sLeaves.length===0 && sEvents.length===0 && sPersonal.length===0 &&
+                {sBdays.map((emp,idx) => <div key={"sbd"+idx} style={{background:"#fff0f8",borderRadius:12,padding:"12px 16px",borderLeft:"4px solid #c2185b"}}>
+                  <div style={{fontWeight:700,fontSize:14,color:"#c2185b"}}>🎂 {emp.name} 생일</div>
+                  <div style={{fontSize:12,color:C.sub}}>생일 축하해요 🎉</div>
+                </div>)}
+                {!sHoliday && sLeaves.length===0 && sEvents.length===0 && sPersonal.length===0 && sBdays.length===0 &&
                   <div style={{textAlign:"center",color:C.sub,fontSize:13,padding:16}}>일정이 없어요</div>}
               </div>
             </div>
@@ -672,7 +685,7 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
         {tab==="calendar" && (
           <div>
             <PersonalEventForm user={user} personalEvents={personalEvents} setPersonalEvents={setPersonalEvents} />
-            <CalendarView leaves={leaves} companyEvents={companyEvents} personalEvents={personalEvents.filter(e=>e.empId===user.id)} />
+            <CalendarView leaves={leaves} companyEvents={companyEvents} personalEvents={personalEvents.filter(e=>e.empId===user.id)} employees={employees} />
           </div>
         )}
       </div>
@@ -894,7 +907,7 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
             </div>
           </div>
         )}
-        {tab==="calendar" && <CalendarView leaves={leaves} companyEvents={companyEvents} personalEvents={personalEvents} />}
+        {tab==="calendar" && <CalendarView leaves={leaves} companyEvents={companyEvents} personalEvents={personalEvents} employees={employees} />}
         {tab==="events" && <CompanyEventManager companyEvents={companyEvents} setCompanyEvents={setCompanyEvents} showToast={showToast} />}
         </div>
       </div>
