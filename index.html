@@ -478,9 +478,14 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
     setLeaves(prev => prev.filter(l => l.id!==id));
     showToast("🗑 신청이 취소됐어요.");
   };
+  const requestCancelLeave = async (id) => {
+    await dbUpdate("leaves", id, { status: "cancel_requested" });
+    setLeaves(prev => prev.map(l => l.id===id ? {...l, status:"cancel_requested"} : l));
+    showToast("↩️ 취소 신청했어요. 관리자 승인 후 처리돼요.");
+  };
 
   const statusBadge = (s) => {
-    const map = { pending:["대기중",C.yellow,C.yellowLight], approved:["승인됨",C.green,C.greenLight], rejected:["반려됨",C.red,C.redLight] };
+    const map = { pending:["대기중",C.yellow,C.yellowLight], approved:["승인됨",C.green,C.greenLight], rejected:["반려됨",C.red,C.redLight], cancel_requested:["취소신청중","#e03131","#fff0f0"] };
     const [label,color,bg] = map[s]||["?",C.sub,C.bg];
     return <span style={{fontSize:12,fontWeight:700,color,background:bg,padding:"3px 10px",borderRadius:20}}>{label}</span>;
   };
@@ -677,6 +682,9 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
                       {l.reason && <div style={{fontSize:13,color:C.sub}}>{l.reason}</div>}
                       {l.status==="pending" && <button onClick={()=>cancelLeave(l.id)}
                         style={{...btn(C.redLight,C.red),marginTop:10,fontSize:12,padding:"6px 14px"}}>취소하기</button>}
+                      {l.status==="approved" && <button onClick={()=>requestCancelLeave(l.id)}
+                        style={{...btn("#fff0f0","#e03131"),marginTop:10,fontSize:12,padding:"6px 14px",border:"1px solid #e03131"}}>취소 신청</button>}
+                      {l.status==="cancel_requested" && <span style={{fontSize:12,color:"#e03131",marginTop:10,display:"block"}}>⏳ 취소 승인 대기중</span>}
                     </div>
                   ))}
                 </div>}
@@ -754,6 +762,17 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),2500); };
   const pendingLeaves = leaves.filter(l => l.status==="pending").sort((a,b)=>b.id-a.id);
+  const cancelRequestLeaves = leaves.filter(l => l.status==="cancel_requested").sort((a,b)=>b.id-a.id);
+  const confirmCancel = async (id) => {
+    await dbDelete("leaves", id);
+    setLeaves(prev => prev.filter(l => l.id!==id));
+    showToast("✅ 취소 처리됐어요.");
+  };
+  const rejectCancel = async (id) => {
+    await dbUpdate("leaves", id, { status: "approved" });
+    setLeaves(prev => prev.map(l => l.id===id ? {...l, status:"approved"} : l));
+    showToast("↩️ 취소 신청을 반려했어요.");
+  };
   const approvedLeaves = leaves.filter(l => l.status==="approved");
   const tStr = todayStr();
   const onLeaveToday = approvedLeaves.filter(l => l.startDate<=tStr && l.endDate>=tStr);
@@ -816,6 +835,23 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
       <div style={{maxWidth:600,margin:"0 auto"}}>
         {tab==="leave" && (
           <div>
+            {cancelRequestLeaves.length>0 && (
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#e03131"}}>↩️ 취소 신청 대기 ({cancelRequestLeaves.length}건)</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {cancelRequestLeaves.map(l => (
+                    <div key={l.id} style={{background:C.card,borderRadius:16,padding:18,boxShadow:"0 1px 8px #0001",borderLeft:"4px solid #e03131"}}>
+                      <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{l.empName} <span style={{fontSize:12,color:"#e03131",fontWeight:400}}>취소 요청</span></div>
+                      <div style={{fontSize:14,color:C.sub,marginBottom:10}}>{l.leaveType==="반차"?`${fmt(l.startDate)} (${l.halfType||"오전"}반차)`:`${fmt(l.startDate)} ~ ${fmt(l.endDate)}`}</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>confirmCancel(l.id)} style={{...btn(C.red),flex:1}}>취소 승인 ✅</button>
+                        <button onClick={()=>rejectCancel(l.id)} style={{...btn(C.card,C.sub),flex:1,border:`1px solid ${C.border}`}}>반려 ❌</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {pendingLeaves.length>0 && (
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:C.accent}}>⏳ 승인 대기 ({pendingLeaves.length}건)</div>
@@ -840,8 +876,8 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
                 ? <div style={{textAlign:"center",color:C.sub,padding:"30px 0"}}>신청 내역이 없어요</div>
                 : <div style={{display:"flex",flexDirection:"column",gap:8}}>
                     {[...leaves].sort((a,b)=>b.id-a.id).map(l => {
-                      const color={approved:C.green,rejected:C.red,pending:C.yellow}[l.status];
-                      const label={approved:"승인",rejected:"반려",pending:"대기"}[l.status];
+                      const color={approved:C.green,rejected:C.red,pending:C.yellow,cancel_requested:"#e03131"}[l.status]||C.sub;
+                      const label={approved:"승인",rejected:"반려",pending:"대기",cancel_requested:"취소신청"}[l.status]||"?";
                       return (
                         <div key={l.id} style={{background:C.card,borderRadius:12,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 6px #0001"}}>
                           <div>
