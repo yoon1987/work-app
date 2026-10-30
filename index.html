@@ -558,6 +558,29 @@ function EmployeeScreen({ user, employees, attendance, setAttendance, leaves, se
                 ))}
               </div>
             </div>
+            <div style={{background:C.card,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 1px 8px #0001"}}>
+              <div style={{fontSize:13,color:C.sub,marginBottom:12}}>이번달 출근일수</div>
+              {(() => {
+                const now = new Date();
+                const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+                const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+                let workDaysUpTo = 0;
+                for (let d=1; d<=now.getDate(); d++) {
+                  const ds = `${ym}-${String(d).padStart(2,"0")}`;
+                  if (!isWeekendOrHoliday(ds)) workDaysUpTo++;
+                }
+                const myCount = new Set(monthRecs.filter(r=>r.clockIn).map(r=>r.date)).size;
+                return (
+                  <div style={{display:"flex",alignItems:"center",gap:16}}>
+                    <div style={{fontSize:42,fontWeight:800,color:C.primary,lineHeight:1}}>{myCount}</div>
+                    <div>
+                      <div style={{fontSize:13,color:C.text,fontWeight:600}}>일 출근</div>
+                      <div style={{fontSize:12,color:C.sub}}>영업일 기준 {workDaysUpTo}일 중</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
             <div style={{background:C.card,borderRadius:16,padding:20,boxShadow:"0 1px 8px #0001"}}>
               <div style={{fontSize:13,color:C.sub,marginBottom:12}}>이번달 근무 기록</div>
               {monthRecs.length===0
@@ -989,22 +1012,18 @@ function AdminScreen({ employees, attendance, setAttendance, leaves, setLeaves, 
                 </div>
               </div>
               <div style={{background:C.card,borderRadius:16,overflow:"hidden",boxShadow:"0 1px 8px #0001"}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",background:"#5c4a35",color:"#fff",padding:"10px 16px",fontSize:12,fontWeight:700,gap:8}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",background:"#5c4a35",color:"#fff",padding:"10px 16px",fontSize:12,fontWeight:700,gap:8}}>
                   <span>이름</span>
-                  <span style={{textAlign:"center",minWidth:50}}>출근일</span>
-                  <span style={{textAlign:"center",minWidth:50}}>영업일</span>
-                  <span style={{textAlign:"center",minWidth:50}}>출근율</span>
+                  <span style={{textAlign:"center",minWidth:60}}>출근일</span>
+                  <span style={{textAlign:"center",minWidth:60}}>/ 영업일</span>
                 </div>
                 {employees.map((emp,i) => {
                   const empDays = new Set(monthAttend.filter(a=>a.empId===emp.id && a.clockIn).map(a=>a.date)).size;
-                  const pct = workDaysUpTo>0 ? Math.round((empDays/workDaysUpTo)*100) : 0;
-                  const color = pct>=90?C.green:pct>=70?C.yellow:C.red;
                   return (
-                    <div key={emp.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",padding:"12px 16px",gap:8,alignItems:"center",borderTop:i>0?`1px solid ${C.border}`:"none",background:i%2===0?"transparent":"#faf7f2"}}>
+                    <div key={emp.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto",padding:"12px 16px",gap:8,alignItems:"center",borderTop:i>0?`1px solid ${C.border}`:"none",background:i%2===0?"transparent":"#faf7f2"}}>
                       <span style={{fontWeight:600,fontSize:14}}>{emp.name}</span>
-                      <span style={{textAlign:"center",fontSize:15,fontWeight:800,color:C.primary,minWidth:50}}>{empDays}일</span>
-                      <span style={{textAlign:"center",fontSize:13,color:C.sub,minWidth:50}}>{workDaysUpTo}일</span>
-                      <span style={{textAlign:"center",fontSize:13,fontWeight:700,color,minWidth:50}}>{pct}%</span>
+                      <span style={{textAlign:"center",fontSize:16,fontWeight:800,color:C.primary,minWidth:60}}>{empDays}일</span>
+                      <span style={{textAlign:"center",fontSize:13,color:C.sub,minWidth:60}}>/ {workDaysUpTo}일</span>
                     </div>
                   );
                 })}
